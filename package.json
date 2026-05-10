@@ -1,0 +1,16 @@
+{
+  "name": "durak",
+  "private": true,
+  "description": "Durak card game — engine + minimal WS server",
+  "main": "durak.js",
+  "scripts": {
+    "prestart": "node ensure-deps.js",
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

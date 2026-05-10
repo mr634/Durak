@@ -1,0 +1,1749 @@
+<!DOCTYPE html>
+<html lang="en" data-card-back-src="/assets/cards/card_back.png?v=CARD_BACK_MT">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Durak — client</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --felt: #4a5568;
+        --felt-deep: #383f4f;
+        --felt-light: #5c6578;
+        --card-w: 4.75rem;
+        --card-h: 6.75rem;
+        --lift: calc(var(--card-h) * -0.3);
+        --card-corner-font: "Cormorant Garamond", "Palatino Linotype", Palatino,
+          Georgia, serif;
+        --btn-gold: #020202;
+        --btn-text-shadow: 0 0.3px 0.3px rgba(0, 0, 0, 0.411);
+        /* assets/ is served at /assets/ (server.js). Place files on disk under Durak/assets/ */
+        --tex-table: url("/assets/ui/table_background.png");
+        /* Face-down art: <img class="card__back-img"> uses html[data-card-back-src] (same ?v= as server injects) */
+        --tex-button: url("/assets/ui/button_background.png");
+      }
+      html {
+        width: 100vw;
+        min-height: 100vh;
+        height: 100%;
+        overflow-x: hidden;
+        background-color: #3d4a5c;
+        background-image: var(--tex-table);
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+      }
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 52rem;
+        margin: 0 auto;
+        padding: 1rem 1rem 2rem;
+        line-height: 1.45;
+        background: transparent;
+        min-height: 100vh;
+        min-height: 100dvh;
+      }
+      button {
+        appearance: none;
+        margin: 0.15rem;
+        cursor: pointer;
+        box-sizing: border-box;
+        font-family: var(--card-corner-font);
+        font-weight: 700;
+        font-style: normal;
+        letter-spacing: 0.02em;
+        font-size: clamp(0.75rem, calc(var(--card-w) * 0.18), 0.95rem);
+        color: var(--btn-gold);
+        text-shadow: var(--btn-text-shadow);
+        padding: 0.42em 0.75em;
+        border-radius: 8px;
+        border: 1px solid rgba(20, 15, 10, 0.35);
+        background-color: #5c4a32;
+        background-image: var(--tex-button);
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        transition: transform 0.08s ease, box-shadow 0.15s ease, filter 0.12s ease;
+      }
+      button:hover:not(:disabled) {
+        box-shadow: 0 0 0 2px rgba(184, 134, 0, 0.85),
+          0 0 14px rgba(184, 134, 0, 0.45);
+      }
+      button:active:not(:disabled) {
+        transform: translateY(1px);
+      }
+      button:disabled {
+        opacity: 0.42;
+        cursor: not-allowed;
+        box-shadow: none;
+      }
+      code {
+        background: #eee;
+        padding: 0.1em 0.35em;
+        border-radius: 4px;
+      }
+      /* Let the full-page table cloth show through (was solid white — hid all textures). */
+      section.panel {
+        background: rgba(255, 255, 255, 0.78);
+        backdrop-filter: blur(6px);
+        border-radius: 12px;
+        padding: 1rem 1.25rem 1.25rem;
+        margin-bottom: 1.25rem;
+        box-shadow: 0 2px 16px rgba(0, 0, 0, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.35);
+      }
+      section.panel h2 {
+        margin: 0 0 0.5rem;
+        font-size: 1.15rem;
+      }
+      /* Playmat = same table cloth art as the page (grey gradient only if image missing). */
+      .felt {
+        background-color: var(--felt-deep);
+        background-image: var(--tex-table),
+          linear-gradient(
+            165deg,
+            var(--felt-light) 0%,
+            var(--felt) 42%,
+            var(--felt-deep) 100%
+          );
+        background-size: cover, auto;
+        background-position: center, center;
+        background-repeat: no-repeat, no-repeat;
+        border-radius: 12px;
+        padding: 1rem;
+        margin: 0.75rem 0;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      }
+      .felt--playmat {
+        margin-top: 0.5rem;
+      }
+      .hand-label {
+        margin: 0 0 0.35rem;
+        font-size: 0.78rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.55);
+      }
+      .battle-strip {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 0.75rem 1rem;
+        margin: 0.65rem 0;
+        min-height: calc(var(--card-h) + 3rem);
+        overflow: visible;
+      }
+      .deck-column {
+        width: fit-content;
+        min-width: 6.25rem;
+        max-width: 11rem;
+        flex-shrink: 0;
+        overflow: visible;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.45rem;
+      }
+      .deck-column--spacer {
+        visibility: hidden;
+        pointer-events: none;
+      }
+      /*
+        Trump = hand-sized card, rotated −90° so the face aims toward the table (right).
+        Slot flush with scene’s inner edge (toward table); ⅔ stays under the pile, ⅓ shows.
+      */
+      .deck-trump-scene {
+        position: relative;
+        height: var(--card-h);
+        width: calc(var(--deck-visual-w, var(--card-w)) + var(--card-h) / 3);
+        overflow: visible;
+        margin-left: auto;
+        align-self: flex-end;
+      }
+      .trump-slot-side {
+        position: absolute;
+        right: 0;
+        left: auto;
+        bottom: 0;
+        z-index: 1;
+        width: var(--card-h);
+        height: var(--card-w);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+      }
+      .trump-slot-side .card {
+        width: var(--card-w);
+        height: var(--card-h);
+        transform: rotate(-90deg);
+        transform-origin: center center;
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+      }
+      .deck-stack {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        height: var(--card-h);
+        width: var(--deck-visual-w, var(--card-w));
+        z-index: 2;
+      }
+      .deck-stack .deck-layer {
+        position: absolute;
+        bottom: 0;
+      }
+      .deck-actions-row {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        width: 100%;
+      }
+      /* Yellow actions sit under your hand so they don’t overlap / steal clicks */
+      .deck-actions-under-hand {
+        width: 6.25rem;
+        flex-shrink: 0;
+        margin-top: 0.35rem;
+      }
+      .player-hand-block {
+        position: relative;
+        z-index: 2;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        width: 100%;
+        min-width: 0;
+      }
+      /* Inherits button skin; sizing tweaks for playmat / strips */
+      .btn-table {
+        padding: 0.48rem 0.62rem;
+        font-size: clamp(0.72rem, calc(var(--card-w) * 0.17), 0.88rem);
+      }
+      /* [hidden] must win — same issue as .game-over-overlay */
+      .ambiguous-strip[hidden] {
+        display: none !important;
+      }
+      .ambiguous-strip:not([hidden]) {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.45rem;
+        justify-content: flex-start;
+      }
+      .ambiguous-strip {
+        position: relative;
+        z-index: 3;
+        margin: 0.35rem 0 0;
+        padding: 0.45rem 0.55rem;
+        border-radius: 10px;
+        background: rgba(0, 0, 0, 0.35);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: rgba(255, 255, 255, 0.95);
+        font-size: 0.86rem;
+        max-width: 22rem;
+      }
+      .ambiguous-strip .btn-table {
+        flex: 0 1 auto;
+        min-width: 5rem;
+      }
+      .card--opp-mystery {
+        opacity: 0.38;
+        filter: saturate(0.85);
+      }
+      /* Do not set display:flex on the base rule — it overrides [hidden] in common browsers. */
+      .game-over-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        background: rgba(15, 23, 42, 0.72);
+        backdrop-filter: blur(6px);
+        padding: 1rem;
+      }
+      .game-over-overlay[hidden] {
+        display: none !important;
+      }
+      .game-over-overlay:not([hidden]) {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .game-over-card {
+        max-width: 22rem;
+        width: 100%;
+        background: linear-gradient(165deg, #fff 0%, #f1f5f9 100%);
+        border-radius: 16px;
+        padding: 1.25rem;
+        text-align: center;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+      }
+      .game-over-card img {
+        width: 100%;
+        max-height: 220px;
+        object-fit: cover;
+        border-radius: 12px;
+        margin-bottom: 0.85rem;
+      }
+      .game-over-card img[hidden] {
+        display: none !important;
+      }
+      .game-over-card h2 {
+        margin: 0 0 0.35rem;
+        font-size: 1.35rem;
+      }
+      .game-over-card p {
+        margin: 0 0 1rem;
+        color: #475569;
+        line-height: 1.4;
+      }
+      .game-over-card .btn-table {
+        width: 100%;
+      }
+      .table-column {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-end;
+        min-width: 0;
+      }
+      /* Hands: JS builds .hand-strip rows — overlap via --hand-advance (see layoutOverlappingHand) */
+      .hand-row {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.38rem;
+        width: 100%;
+        min-width: 0;
+        min-height: calc(var(--card-h) + 4px);
+      }
+      .hand-row--online {
+        min-height: calc(var(--card-h) + 12px);
+      }
+      .hand-strip {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        align-items: flex-end;
+        justify-content: flex-start;
+        width: 100%;
+        min-width: 0;
+        min-height: var(--card-h);
+      }
+      .hand-strip .card {
+        flex-shrink: 0;
+      }
+      .hand-strip .card:not(:first-child) {
+        margin-left: calc(var(--hand-advance) - var(--card-w));
+      }
+      .card {
+        width: var(--card-w);
+        height: var(--card-h);
+        border-radius: 8px;
+        background: #fafafa;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25),
+          inset 0 1px 0 rgba(255, 255, 255, 0.85);
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 0.35rem 0.45rem;
+        box-sizing: border-box;
+        user-select: none;
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
+      }
+      .card--clickable {
+        cursor: pointer;
+      }
+      /*
+        YOUR hand: playable cards — thin yellow rim + lift on hover.
+      */
+      #gameHand .card.card--can-play {
+        outline: 1px solid rgba(255, 214, 120, 0.78);
+        outline-offset: 1px;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28),
+          inset 0 1px 0 rgba(255, 255, 255, 0.85),
+          0 0 0 1px rgba(255, 230, 160, 0.28);
+      }
+      #gameHand .card.card--can-play:hover {
+        transform: translateY(var(--lift));
+        box-shadow: 0 10px 22px rgba(0, 0, 0, 0.38),
+          inset 0 1px 0 rgba(255, 255, 255, 0.85);
+        outline: 1px solid rgba(255, 230, 160, 0.95);
+        z-index: 3;
+        filter: brightness(1.03);
+      }
+      /* Table: never lift / outline on hover */
+      #tableArea .card:hover {
+        transform: none;
+        outline: none;
+        filter: none;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25),
+          inset 0 1px 0 rgba(255, 255, 255, 0.85);
+      }
+      .card__corner {
+        font-size: 0.95rem;
+        font-weight: 700;
+        line-height: 1;
+      }
+      .card__corner--br {
+        align-self: flex-end;
+        transform: rotate(180deg);
+      }
+      .card--red .card__corner {
+        color: #c01818;
+      }
+      .card--black .card__corner {
+        color: #111;
+      }
+      /* Illustrated faces — assets/cards/*.png */
+      .card--face-art {
+        position: relative;
+        display: block;
+        padding: 0;
+        overflow: hidden;
+        justify-content: unset;
+        background: #265329;
+      }
+      .card__face-img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        object-position: center;
+        pointer-events: none;
+        user-select: none;
+      }
+      .card__overlay-corner {
+        position: absolute;
+        z-index: 2;
+        display: flex;
+        align-items: flex-start;
+        justify-content: flex-start;
+        font-family: var(--card-corner-font);
+        font-weight: 700;
+        font-style: normal;
+        line-height: 1;
+        padding: min(7%, 0.3rem) min(8%, 0.38rem);
+        font-size: clamp(0.48rem, calc(var(--card-w) * 0.155), 0.9rem);
+        letter-spacing: 0.02em;
+        pointer-events: none;
+      }
+      .card__overlay-corner--tl {
+        top: 0;
+        left: 0;
+      }
+      .card__overlay-corner--br {
+        bottom: 0;
+        right: 0;
+        transform: rotate(180deg);
+      }
+      /* Rank + suit on one line — fits illustrated corner circles */
+      .card__overlay-pip {
+        display: inline-flex;
+        flex-direction: row;
+        align-items: baseline;
+        gap: 0.06em;
+        transform: translateY(-0.12em);
+      }
+      .card__overlay-rank {
+        display: inline-block;
+      }
+      .card__overlay-suit {
+        display: inline-block;
+        font-size: 1.02em;
+      }
+      .card--overlay-red .card__overlay-corner {
+        color: #ffc9c9;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65),
+          0 0 1px rgba(60, 0, 0, 0.9);
+      }
+      .card--overlay-navy .card__overlay-corner {
+        color: #dce6ff;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65),
+          0 0 1px rgba(10, 15, 40, 0.95);
+      }
+      /* Face-down: same as faces — contain + inset frame (padding shrinks img box; no stretch). */
+      .card--back {
+        position: relative;
+        display: block;
+        padding: min(5.5%, 5px);
+        box-sizing: border-box;
+        overflow: hidden;
+        justify-content: unset;
+        background-color: #1e3a5f;
+        border-color: rgba(0, 0, 0, 0.25);
+      }
+      .card__back-img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        object-position: center;
+        pointer-events: none;
+        user-select: none;
+        image-rendering: auto;
+      }
+      .card--back.card--back-fallback {
+        background-image: repeating-linear-gradient(
+          -12deg,
+          #1e3a5f,
+          #1e3a5f 6px,
+          #243d63 6px,
+          #243d63 12px
+        );
+        background-size: auto;
+        background-position: center;
+        background-repeat: repeat;
+      }
+      .lobby-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem 0.75rem;
+        margin-bottom: 0.65rem;
+      }
+      .lobby-row label {
+        font-size: 0.88rem;
+      }
+      .table-wrap {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.65rem;
+        align-items: flex-end;
+      }
+      /* Open attack only (no placeholder until defender plays) */
+      .table-pair--open {
+        display: flex;
+        align-items: flex-end;
+      }
+      .table-pair--open .card {
+        flex-shrink: 0;
+      }
+      /* Beaten: defend stacked on attack, offset so both stay visible */
+      .table-pair--beaten {
+        flex-shrink: 0;
+      }
+      .table-pair--beaten .stack-inner {
+        position: relative;
+        width: calc(var(--card-w) + 18px);
+        height: calc(var(--card-h) + 14px);
+      }
+      .table-pair--beaten .card--attack-layer {
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        z-index: 1;
+      }
+      .table-pair--beaten .card--defend-layer {
+        position: absolute;
+        left: 16px;
+        bottom: 18px;
+        z-index: 2;
+      }
+      /* Splash: pair opens second tab — localStorage shares pending room id */
+      .start-screen {
+        position: fixed;
+        inset: 0;
+        z-index: 99;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0;
+        padding: 2rem 1rem;
+        box-sizing: border-box;
+        background-color: #2a3344;
+        background-image: url("/assets/ui/game_start_wide.png");
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+      }
+      .start-screen[hidden] {
+        display: none !important;
+      }
+      .start-screen__inner {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
+        margin-left: min(22vw, 14rem);
+        margin-top: min(10vh, 5rem);
+        max-width: 90vw;
+      }
+      #btnInviteJoin {
+        opacity: 0.65;
+        font-size: clamp(1.08rem, 4vw, 1.55rem);
+        padding: 0.52em 1.15em;
+      }
+      #btnInviteJoin:hover:not(:disabled) {
+        opacity: 0.82;
+      }
+      #btnInviteJoin:disabled {
+        opacity: 0.42;
+      }
+      #gameShell {
+        position: relative;
+        z-index: 100;
+      }
+      details.lobby-advanced {
+        margin-bottom: 0.65rem;
+        font-size: 0.85rem;
+        color: #334155;
+      }
+      details.lobby-advanced summary {
+        cursor: pointer;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="startScreen" class="start-screen">
+      <div class="start-screen__inner">
+        <button type="button" id="btnInviteJoin">Invite babe</button>
+      </div>
+    </div>
+
+    <section id="gameShell" class="panel" hidden>
+      <details class="lobby-advanced">
+        <summary>Connection</summary>
+        <div class="lobby-row">
+          <label
+            >WS
+            <input
+              id="wsUrl"
+              type="text"
+              size="34"
+              value=""
+              placeholder="wss://your-app — filled automatically"
+              autocomplete="off"
+            /></label>
+          <button id="btnConnect" type="button">Connect</button>
+          <span id="connStatus">disconnected</span>
+          <button id="btnCreate" type="button" disabled>Create</button>
+          <input id="roomCode" placeholder="Room" size="7" autocomplete="off" />
+          <button id="btnJoin" type="button" disabled>Join</button>
+          <button id="btnLeave" type="button" disabled>Leave</button>
+        </div>
+      </details>
+
+      <div id="playmat" class="felt felt--playmat" hidden>
+        <p class="hand-label">Babe</p>
+        <div class="hand-row" id="oppHand" aria-label="Opponent cards"></div>
+
+        <div class="battle-strip">
+          <div class="deck-column" aria-label="Draw pile and trump">
+            <div class="deck-trump-scene">
+              <div id="trumpSlot" class="trump-slot-side" aria-hidden="true"></div>
+              <div id="deckStack" class="deck-stack"></div>
+            </div>
+          </div>
+          <div class="table-column">
+            <div id="tableArea" class="table-wrap" aria-label="Table"></div>
+          </div>
+          <div class="deck-column deck-column--spacer" aria-hidden="true"></div>
+        </div>
+
+        <div class="player-hand-block">
+          <p class="hand-label">You</p>
+          <div
+            class="hand-row hand-row--online"
+            id="gameHand"
+            aria-label="Your cards"
+          ></div>
+          <div
+            id="deckActionsRow"
+            class="deck-actions-row deck-actions-under-hand"
+            hidden
+          >
+            <button
+              type="button"
+              id="btnTake"
+              class="btn-table"
+              disabled
+              hidden
+            >
+              Take
+            </button>
+            <button
+              type="button"
+              id="btnEndTurn"
+              class="btn-table"
+              disabled
+              hidden
+            >
+              End attack
+            </button>
+          </div>
+          <div id="ambiguousStrip" class="ambiguous-strip" hidden>
+            <button type="button" id="btnChooseTransfer" class="btn-table">
+              Transfer
+            </button>
+            <button type="button" id="btnChooseDefend" class="btn-table">
+              Defend
+            </button>
+            <button type="button" id="btnAmbiguousCancel" class="btn-table">
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div id="gameOverOverlay" class="game-over-overlay" hidden>
+        <div class="game-over-card" role="dialog" aria-labelledby="gameOverHeadline">
+          <img id="gameOverImg" alt="" hidden />
+          <h2 id="gameOverHeadline"></h2>
+          <p id="gameOverExtra"></p>
+          <button type="button" id="gameOverDismiss" class="btn-table">
+            OK
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <script>
+      /**
+       * Client bootstrap — networking + view. Rules duplicated loosely from durak.js for UX.
+       * For deeper UI iterations prefer extracting render/state modules or loading durak.js
+       * as a shared bundle instead of growing this script indefinitely.
+       */
+      const WS_READY_STATE_OPEN = 1;
+      const SUITS = ["S", "H", "D", "C"];
+      const RANKS = ["6", "7", "8", "9", "10", "J", "Q", "K", "A"];
+      const RANK_ORDER = Object.fromEntries(RANKS.map((r, i) => [r, i]));
+      const SUIT_UI = {
+        S: { symbol: "♠", red: false },
+        H: { symbol: "♥", red: true },
+        D: { symbol: "♦", red: true },
+        C: { symbol: "♣", red: false },
+      };
+
+      /** Same host as the page (Railway HTTPS → wss://…); file/open-file → localhost dev server */
+      function inferDurakWsUrl() {
+        try {
+          const { protocol, host } = location;
+          if (protocol === "file:") return "ws://localhost:8787";
+          if (protocol !== "http:" && protocol !== "https:")
+            return "ws://localhost:8787";
+          return (protocol === "https:" ? "wss:" : "ws:") + "//" + host;
+        } catch {
+          return "ws://localhost:8787";
+        }
+      }
+
+      function applyDefaultWsUrlInput() {
+        const el = document.getElementById("wsUrl");
+        if (!el) return;
+        el.value = inferDurakWsUrl();
+      }
+
+      /** @param {string} cardId */
+      function parseCardId(cardId) {
+        const m = String(cardId).match(/^(.+)([SHDC])$/i);
+        if (!m) return null;
+        const rank = m[1].toUpperCase() === "T" ? "10" : m[1];
+        const suit = m[2].toUpperCase();
+        return { rank, suit };
+      }
+
+      function ranksOnTable(table) {
+        const set = new Set();
+        for (const row of table || []) {
+          const a = parseCardId(row.attack);
+          if (a) set.add(a.rank);
+          if (row.defend) {
+            const d = parseCardId(row.defend);
+            if (d) set.add(d.rank);
+          }
+        }
+        return set;
+      }
+
+      function canBeat(attackCard, defendCard, trumpSuit) {
+        const a = parseCardId(attackCard);
+        const d = parseCardId(defendCard);
+        if (!a || !d) return false;
+        const ta = a.suit === trumpSuit;
+        const td = d.suit === trumpSuit;
+        if (d.suit === a.suit && !ta && !td)
+          return RANK_ORDER[d.rank] > RANK_ORDER[a.rank];
+        if (!ta && td) return true;
+        if (ta && td) return RANK_ORDER[d.rank] > RANK_ORDER[a.rank];
+        return false;
+      }
+
+      /** Human-readable rank for corner overlay (Durak deck: 6–10, J, Q, K, A). */
+      function rankOverlayLabel(rank) {
+        if (rank === "10") return "10";
+        return rank;
+      }
+
+      /**
+       * Maps engine card to assets/cards filename (shared art for red vs black pairs).
+       */
+      function cardImageBasename(rank, suit) {
+        const pair =
+          suit === "H" || suit === "D" ? "hearts_diamonds" : "spades_clubs";
+        if (rank === "A") return `ace_${pair}.png`;
+        if (rank === "J") return `jack_${pair}.png`;
+        if (rank === "Q") return `queen_${pair}.png`;
+        if (rank === "K") return `king_${pair}.png`;
+        return `nonface_${pair}.png`;
+      }
+
+      function cardImageUrl(cardId) {
+        const p = parseCardId(cardId);
+        if (!p) return null;
+        const file = cardImageBasename(p.rank, p.suit);
+        return `/assets/cards/${encodeURIComponent(file)}`;
+      }
+
+      /** Plain text corners — used when image fails to load. */
+      function applyPlainFaceMarkup(el, p, ui, extraClass) {
+        el.className =
+          `card ${ui.red ? "card--red" : "card--black"} ${extraClass || ""}`.trim();
+        const line = `${p.rank}${ui.symbol}`;
+        el.innerHTML = `<span class="card__corner">${line}</span><span class="card__corner card__corner--br">${line}</span>`;
+      }
+
+      /**
+       * Face-up card DOM. Tries custom art under assets/cards; on error falls back to legacy markup.
+       * Single render site for table, hands, trump, practice.
+       */
+      function faceEl(cardId, extraClass) {
+        const p = parseCardId(cardId);
+        const el = document.createElement("div");
+        if (!p) {
+          el.className = "card card--black " + (extraClass || "");
+          el.innerHTML = '<span class="card__corner">?</span>';
+          return el;
+        }
+
+        const ui = SUIT_UI[p.suit];
+        const overlayClass = ui.red ? "card--overlay-red" : "card--overlay-navy";
+        const rankLine = rankOverlayLabel(p.rank);
+        const url = cardImageUrl(cardId);
+
+        el.title = cardId;
+        el.className = `card card--face-art ${overlayClass} ${extraClass || ""}`.trim();
+
+        const img = document.createElement("img");
+        img.className = "card__face-img";
+        img.alt = "";
+        img.decoding = "async";
+        img.loading = "lazy";
+
+        const cornerInner = `<span class="card__overlay-pip"><span class="card__overlay-rank">${rankLine}</span><span class="card__overlay-suit">${ui.symbol}</span></span>`;
+        const tl = document.createElement("div");
+        tl.className = "card__overlay-corner card__overlay-corner--tl";
+        tl.innerHTML = cornerInner;
+        const br = document.createElement("div");
+        br.className = "card__overlay-corner card__overlay-corner--br";
+        br.innerHTML = cornerInner;
+
+        const fallback = () => {
+          img.onerror = null;
+          img.remove();
+          tl.remove();
+          br.remove();
+          applyPlainFaceMarkup(el, p, ui, extraClass);
+        };
+
+        img.onerror = fallback;
+        img.src = url;
+        el.appendChild(img);
+        el.appendChild(tl);
+        el.appendChild(br);
+        return el;
+      }
+
+      function renderCardFaces(container, cardIds) {
+        container.innerHTML = "";
+        for (const id of cardIds) container.appendChild(faceEl(id));
+        requestAnimationFrame(() => layoutOverlappingHand(container));
+      }
+
+      /** Same URL as server-injected data-card-back-src; <img> scales cleaner than CSS background. */
+      function attachCardBackArt(el) {
+        const src = document.documentElement.getAttribute("data-card-back-src");
+        if (!src) return;
+        const img = document.createElement("img");
+        img.className = "card__back-img";
+        img.alt = "";
+        img.decoding = "async";
+        img.src = src;
+        img.onerror = function () {
+          img.remove();
+          el.classList.add("card--back-fallback");
+        };
+        el.appendChild(img);
+      }
+
+      function renderOpponentBacks(container, count) {
+        container.innerHTML = "";
+        const n = Math.min(Math.max(0, count), 36);
+        for (let i = 0; i < n; i++) {
+          const el = document.createElement("div");
+          el.className = "card card--back";
+          el.title = "Hidden card";
+          attachCardBackArt(el);
+          container.appendChild(el);
+        }
+        requestAnimationFrame(() => layoutOverlappingHand(container));
+      }
+
+      /** Stock empty — hide exact opponent count (single mysterious card). */
+      function renderOpponentMystery(container) {
+        container.innerHTML = "";
+        const el = document.createElement("div");
+        el.className = "card card--back card--opp-mystery";
+        el.title = "Hidden hand";
+        attachCardBackArt(el);
+        container.appendChild(el);
+        requestAnimationFrame(() => layoutOverlappingHand(container));
+      }
+
+      let ws;
+      let lastPayload = null;
+      let gameOverOverlayShown = false;
+      /** @type {{ cardId: string, against: string } | null} */
+      let ambiguousChoice = null;
+      let gameOverPackCache = null;
+
+      /** Pending room advertises to other tabs on this origin (Join babe). */
+      const LS_OPEN_ROOM = "durak_open_room";
+      /** This tab clicked Invite (don’t offer Join on the host window). */
+      const SS_HOST_TAB = "durak_ss_invite_tab";
+      let waitingAsHost = false;
+      /** @type {(() => void) | null} */
+      let pendingWsOpenCallback = null;
+
+      function readOpenRoom() {
+        try {
+          const r = localStorage.getItem(LS_OPEN_ROOM);
+          if (!r) return null;
+          const o = JSON.parse(r);
+          if (!o || typeof o.roomId !== "string" || !o.roomId) return null;
+          const ts = typeof o.ts === "number" ? o.ts : 0;
+          if (Date.now() - ts > 60 * 60 * 1000) return null;
+          return { roomId: String(o.roomId).trim().toUpperCase(), ts };
+        } catch {
+          return null;
+        }
+      }
+
+      function writeOpenRoom(roomId) {
+        const id = String(roomId || "").trim().toUpperCase();
+        if (!id) return;
+        localStorage.setItem(
+          LS_OPEN_ROOM,
+          JSON.stringify({ roomId: id, ts: Date.now() }),
+        );
+        refreshInviteJoinUI();
+      }
+
+      function clearOpenRoom() {
+        localStorage.removeItem(LS_OPEN_ROOM);
+        refreshInviteJoinUI();
+      }
+
+      function dismissStartScreen() {
+        const ss = document.getElementById("startScreen");
+        const shell = document.getElementById("gameShell");
+        if (ss) ss.hidden = true;
+        if (shell) shell.hidden = false;
+      }
+
+      function showStartScreen() {
+        const ss = document.getElementById("startScreen");
+        const shell = document.getElementById("gameShell");
+        if (ss) ss.hidden = false;
+        if (shell) shell.hidden = true;
+      }
+
+      function refreshInviteJoinUI() {
+        const btn = document.getElementById("btnInviteJoin");
+        if (!btn) return;
+        if (waitingAsHost) {
+          btn.textContent = "Waiting for babe";
+          btn.disabled = true;
+          btn.dataset.flow = "wait";
+          return;
+        }
+        btn.disabled = false;
+        const pending = readOpenRoom();
+        const iStartedThisInvite = sessionStorage.getItem(SS_HOST_TAB) === "1";
+        if (pending && !iStartedThisInvite) {
+          btn.textContent = "Join babe";
+          btn.dataset.flow = "join";
+        } else {
+          btn.textContent = "Invite babe";
+          btn.dataset.flow = "invite";
+        }
+      }
+
+      function attachSocketHandlers(socket) {
+        socket.onopen = () => {
+          log("ws open");
+          setConnected(true);
+          if (pendingWsOpenCallback) {
+            const fn = pendingWsOpenCallback;
+            pendingWsOpenCallback = null;
+            fn();
+          }
+        };
+        socket.onclose = () => {
+          log("ws closed");
+          setConnected(false);
+          pendingWsOpenCallback = null;
+        };
+        socket.onerror = () =>
+          log("ws error (check URL — use wss:// on https sites)");
+        socket.onmessage = (ev) => {
+          log("<< " + ev.data);
+          try {
+            handleWsMessage(JSON.parse(ev.data));
+          } catch (e) {
+            log("JSON parse error: " + e);
+          }
+        };
+      }
+
+      function ensureConnected(runWhenOpen) {
+        if (ws && ws.readyState === WS_READY_STATE_OPEN) {
+          runWhenOpen();
+          return;
+        }
+        if (ws && ws.readyState === 0) {
+          pendingWsOpenCallback = runWhenOpen;
+          return;
+        }
+        const url = document.getElementById("wsUrl").value.trim();
+        if (!url) {
+          log(
+            "Set WebSocket URL under Connection (open page over http(s) to auto-fill).",
+          );
+          return;
+        }
+        pendingWsOpenCallback = runWhenOpen;
+        try {
+          if (ws && ws.readyState === WS_READY_STATE_OPEN)
+            ws.send(JSON.stringify({ type: "leave" }));
+        } catch (_) {}
+        try {
+          if (ws) ws.close();
+        } catch (_) {}
+        ws = new WebSocket(url);
+        attachSocketHandlers(ws);
+      }
+
+      function normalizeGameOverPack(raw) {
+        const empty = {
+          winnerLines: [],
+          loserLines: [],
+          winnerImages: [],
+          loserImages: [],
+        };
+        if (!raw || typeof raw !== "object") return empty;
+        return {
+          winnerLines: Array.isArray(raw.winnerLines) ? raw.winnerLines : [],
+          loserLines: Array.isArray(raw.loserLines) ? raw.loserLines : [],
+          winnerImages: Array.isArray(raw.winnerImages) ? raw.winnerImages : [],
+          loserImages: Array.isArray(raw.loserImages) ? raw.loserImages : [],
+        };
+      }
+
+      async function fetchGameOverPack() {
+        if (gameOverPackCache) return gameOverPackCache;
+        try {
+          const r = await fetch("/api/game-over-data");
+          if (!r.ok) throw new Error(String(r.status));
+          gameOverPackCache = normalizeGameOverPack(await r.json());
+          return gameOverPackCache;
+        } catch {
+          gameOverPackCache = normalizeGameOverPack(null);
+          return gameOverPackCache;
+        }
+      }
+
+      async function openGameOverOverlay(p) {
+        const win = p.winner === p.you;
+        const headline = win ? "You won!" : "Babe is the durak";
+        const pack = await fetchGameOverPack();
+        const lines = win ? pack.winnerLines : pack.loserLines;
+        const imgs = win ? pack.winnerImages : pack.loserImages;
+        const extra =
+          lines.length > 0 ? lines[Math.floor(Math.random() * lines.length)] : "";
+        const imgUrl =
+          imgs.length > 0 ? imgs[Math.floor(Math.random() * imgs.length)] : "";
+
+        gameOverHeadlineEl.textContent = headline;
+        gameOverExtraEl.textContent = extra || " ";
+        if (imgUrl) {
+          gameOverImgEl.hidden = false;
+          gameOverImgEl.src = imgUrl;
+          gameOverImgEl.alt = headline;
+        } else {
+          gameOverImgEl.hidden = true;
+          gameOverImgEl.removeAttribute("src");
+        }
+        gameOverOverlayEl.hidden = false;
+      }
+
+      /** Engine sets numeric winner for seat index when deck empty — excludes stale null/undefined. */
+      function isFinishedGame(p) {
+        return p != null && typeof p.winner === "number";
+      }
+
+      function tryShowGameOverOverlay(p) {
+        if (!isFinishedGame(p) || gameOverOverlayShown) return;
+        gameOverOverlayShown = true;
+        openGameOverOverlay(p);
+      }
+
+      function stockEmpty(p) {
+        return !p.deck || p.deck.length === 0;
+      }
+
+      function sortHandHighToLow(ids) {
+        return ids.slice().sort((a, b) => {
+          const pa = parseCardId(a);
+          const pb = parseCardId(b);
+          if (!pa || !pb) return 0;
+          const ra = RANK_ORDER[pa.rank];
+          const rb = RANK_ORDER[pb.rank];
+          if (rb !== ra) return rb - ra;
+          return SUITS.indexOf(pa.suit) - SUITS.indexOf(pb.suit);
+        });
+      }
+
+      const playmatEl = document.getElementById("playmat");
+      const trumpSlotEl = document.getElementById("trumpSlot");
+      const deckStackEl = document.getElementById("deckStack");
+      const ambiguousStripEl = document.getElementById("ambiguousStrip");
+      const gameOverOverlayEl = document.getElementById("gameOverOverlay");
+      const gameOverImgEl = document.getElementById("gameOverImg");
+      const gameOverHeadlineEl = document.getElementById("gameOverHeadline");
+      const gameOverExtraEl = document.getElementById("gameOverExtra");
+      const gameHandEl = document.getElementById("gameHand");
+      const oppHandEl = document.getElementById("oppHand");
+      const tableAreaEl = document.getElementById("tableArea");
+      const btnTakeEl = document.getElementById("btnTake");
+      const btnEndTurnEl = document.getElementById("btnEndTurn");
+      const deckActionsRowEl = document.getElementById("deckActionsRow");
+
+      function log(line) {
+        console.log(String(line));
+      }
+
+      /** px — visual gap between cards when the row has room */
+      const HAND_GAP_PX = 8;
+
+      function handMinAdvancePx(cardWidthPx) {
+        return Math.max(26, Math.round(cardWidthPx * 0.38));
+      }
+
+      function maxCardsOneRow(availPx, cardWPx, minAdvPx) {
+        if (availPx <= cardWPx || cardWPx <= 0) return 1;
+        return 1 + Math.floor((availPx - cardWPx) / minAdvPx);
+      }
+
+      /** Greedy rows: pack as many cards as possible per row at min advance before wrapping. */
+      function splitHandIntoRows(count, availPx, cardWPx, minAdvPx) {
+        const rows = [];
+        let rest = count;
+        while (rest > 0) {
+          const maxFit = maxCardsOneRow(availPx, cardWPx, minAdvPx);
+          const k = Math.min(rest, Math.max(1, maxFit));
+          rows.push(k);
+          rest -= k;
+        }
+        return rows;
+      }
+
+      function advanceForRow(cardCount, availPx, cardWPx, gapPx, minAdvPx) {
+        if (cardCount <= 1) return cardWPx;
+        const tight = (availPx - cardWPx) / (cardCount - 1);
+        const natural = cardWPx + gapPx;
+        return Math.min(natural, Math.max(minAdvPx, tight));
+      }
+
+      /**
+       * Flatten existing strips, then rebuild overlapping rows so corners stay readable.
+       */
+      function layoutOverlappingHand(containerEl) {
+        if (!containerEl) return;
+        const cards = [...containerEl.querySelectorAll(".card")];
+        if (cards.length === 0) return;
+
+        let cw = cards[0].getBoundingClientRect().width;
+        if (cw < 4) cw = cards[0].offsetWidth || 76;
+        const avail = Math.max(
+          48,
+          containerEl.clientWidth ||
+            containerEl.getBoundingClientRect().width ||
+            320,
+        );
+        const minAdv = handMinAdvancePx(cw);
+        const rowCounts = splitHandIntoRows(cards.length, avail, cw, minAdv);
+
+        cards.forEach((c) => c.remove());
+        containerEl.innerHTML = "";
+
+        let idx = 0;
+        for (let r = 0; r < rowCounts.length; r++) {
+          const n = rowCounts[r];
+          const slice = cards.slice(idx, idx + n);
+          idx += n;
+          const strip = document.createElement("div");
+          strip.className = "hand-strip";
+          const advPx = advanceForRow(n, avail, cw, HAND_GAP_PX, minAdv);
+          strip.style.setProperty("--hand-advance", `${advPx}px`);
+          slice.forEach((card, i) => {
+            card.style.zIndex = String(i + 1);
+            strip.appendChild(card);
+          });
+          containerEl.appendChild(strip);
+        }
+      }
+
+      let handLayoutObserver = null;
+      function setupHandLayoutObservers() {
+        if (handLayoutObserver || typeof ResizeObserver === "undefined") return;
+        handLayoutObserver = new ResizeObserver(() => {
+          requestAnimationFrame(() => {
+            if (gameHandEl && gameHandEl.querySelector(".card"))
+              layoutOverlappingHand(gameHandEl);
+            if (oppHandEl && oppHandEl.querySelector(".card"))
+              layoutOverlappingHand(oppHandEl);
+          });
+        });
+        handLayoutObserver.observe(gameHandEl);
+        handLayoutObserver.observe(oppHandEl);
+      }
+
+      /**
+       * Take / End attack only when they apply; hidden during Transfer vs Defend choice
+       * and whenever it is not your actionable moment (e.g. defender thinking).
+       */
+      function applyDeckButtonVisibility(p) {
+        if (!btnTakeEl || !btnEndTurnEl || !deckActionsRowEl) return;
+        if (!p || typeof p.you !== "number") {
+          btnTakeEl.hidden = true;
+          btnEndTurnEl.hidden = true;
+          deckActionsRowEl.hidden = true;
+          return;
+        }
+        if (isFinishedGame(p)) {
+          btnTakeEl.hidden = true;
+          btnEndTurnEl.hidden = true;
+          deckActionsRowEl.hidden = true;
+          return;
+        }
+        const ambiguousActive =
+          ambiguousStripEl && !ambiguousStripEl.hidden;
+        const you = p.you;
+        const imAtt = p.attacker === you;
+        const imDef = p.defender === you;
+        const table = p.table || [];
+        const hasOpenAttack = table.some((r) => r && r.defend == null);
+        const allDef =
+          table.length > 0 && table.every((r) => r && r.defend != null);
+
+        let showTake = false;
+        let showEnd = false;
+        if (!ambiguousActive) {
+          if (imDef && hasOpenAttack) showTake = true;
+          if (imAtt && allDef && table.length > 0) showEnd = true;
+        }
+
+        btnTakeEl.hidden = !showTake;
+        btnTakeEl.disabled =
+          !showTake || !ws || ws.readyState !== WS_READY_STATE_OPEN;
+
+        btnEndTurnEl.hidden = !showEnd;
+        btnEndTurnEl.disabled =
+          !showEnd || !ws || ws.readyState !== WS_READY_STATE_OPEN;
+
+        deckActionsRowEl.hidden = !showTake && !showEnd;
+      }
+
+      function hideAmbiguousStrip() {
+        ambiguousChoice = null;
+        if (ambiguousStripEl) ambiguousStripEl.hidden = true;
+        applyDeckButtonVisibility(lastPayload);
+      }
+
+      function transferAllowed(p) {
+        if (!p.table || p.table.length === 0) return false;
+        if (p.phase !== "attack") return false;
+        return !p.table.some((t) => t.defend != null);
+      }
+
+      function myHandArray(p) {
+        const h = p.hands[p.you];
+        return Array.isArray(h) ? h : [];
+      }
+
+      /** After refreshInteractiveUI — keep Transfer/Defend strip unless context invalidated */
+      function syncAmbiguousStrip(p, you) {
+        if (!ambiguousChoice || !ambiguousStripEl) return;
+        if (isFinishedGame(p) || p.defender !== you) {
+          hideAmbiguousStrip();
+          return;
+        }
+        const hand = myHandArray(p);
+        const openAgainst = new Set(
+          (p.table || [])
+            .filter((row) => row && row.defend == null)
+            .map((row) => row.attack),
+        );
+        if (
+          !hand.includes(ambiguousChoice.cardId) ||
+          !openAgainst.has(ambiguousChoice.against)
+        ) {
+          hideAmbiguousStrip();
+          return;
+        }
+        ambiguousStripEl.hidden = false;
+      }
+
+      /** First undefended attack this card can transfer onto (table order). */
+      function firstTransferTarget(p, handCard) {
+        if (!transferAllowed(p)) return null;
+        const hr = parseCardId(handCard);
+        if (!hr) return null;
+        for (const row of p.table || []) {
+          if (row.defend != null) continue;
+          const ar = parseCardId(row.attack);
+          if (ar && hr.rank === ar.rank) return row.attack;
+        }
+        return null;
+      }
+
+      /** First undefended attack this card can beat (table order). */
+      function firstBeatTarget(p, handCard) {
+        const trump = p.trumpSuit;
+        for (const row of p.table || []) {
+          if (row.defend != null) continue;
+          if (canBeat(row.attack, handCard, trump)) return row.attack;
+        }
+        return null;
+      }
+
+      function cardEligibleForDefender(p, handCard) {
+        return (
+          firstTransferTarget(p, handCard) != null ||
+          firstBeatTarget(p, handCard) != null
+        );
+      }
+
+      /** Discrete pile thickness — rough sense only (incl. 1 / 2 / 3 left). */
+      function deckDrawVisual(deckLen) {
+        if (deckLen <= 0) return { layers: 0, spread: 2 };
+        if (deckLen === 1) return { layers: 1, spread: 0 };
+        if (deckLen === 2) return { layers: 2, spread: 2 };
+        if (deckLen === 3) return { layers: 3, spread: 2 };
+        if (deckLen <= 6) return { layers: 4, spread: 2 };
+        if (deckLen <= 12) return { layers: 5, spread: 3 };
+        return { layers: 6, spread: 3 };
+      }
+
+      function renderDeckAndTrump(p) {
+        deckStackEl.innerHTML = "";
+        trumpSlotEl.innerHTML = "";
+        const scene = deckStackEl.parentElement;
+        const setSceneW = (w) => {
+          if (scene && scene.classList.contains("deck-trump-scene"))
+            scene.style.setProperty("--deck-visual-w", w);
+        };
+
+        const deck = p.deck || [];
+        const n = deck.length;
+        if (n <= 0) {
+          deckStackEl.style.setProperty("--deck-visual-w", "var(--card-w)");
+          setSceneW("var(--card-w)");
+          return;
+        }
+
+        const trumpCardId = deck[n - 1];
+        const pileDepth = n - 1;
+        const vis = deckDrawVisual(n);
+        const spread = vis.spread;
+
+        if (pileDepth <= 0) {
+          deckStackEl.style.setProperty("--deck-visual-w", "var(--card-w)");
+          setSceneW("var(--card-w)");
+          trumpSlotEl.appendChild(faceEl(trumpCardId));
+          return;
+        }
+
+        const shown = Math.min(vis.layers, pileDepth);
+        const visualW =
+          shown <= 1
+            ? "var(--card-w)"
+            : `calc(var(--card-w) + ${(shown - 1) * spread}px)`;
+        deckStackEl.style.setProperty("--deck-visual-w", visualW);
+        setSceneW(visualW);
+
+        for (let i = 0; i < shown; i++) {
+          const back = document.createElement("div");
+          back.className = "card card--back deck-layer";
+          back.style.left = `${i * spread}px`;
+          back.title = "Draw pile";
+          attachCardBackArt(back);
+          deckStackEl.appendChild(back);
+        }
+
+        trumpSlotEl.appendChild(faceEl(trumpCardId));
+      }
+
+      function cardEligibleForAttacker(p, handCard) {
+        const t = p.table || [];
+        if (t.length === 0) return true;
+        const r = parseCardId(handCard);
+        if (!r) return false;
+        return ranksOnTable(t).has(r.rank);
+      }
+
+      function refreshInteractiveUI() {
+        const p = lastPayload;
+        if (!p || typeof p.you !== "number") return;
+
+        const you = p.you;
+        const hand = sortHandHighToLow(myHandArray(p));
+
+        renderDeckAndTrump(p);
+        renderTable(p);
+
+        gameHandEl.innerHTML = "";
+        const imAtt = p.attacker === you;
+        const imDef = p.defender === you;
+        const gameOver = isFinishedGame(p);
+
+        if (gameOver) {
+          hideAmbiguousStrip();
+          renderCardFaces(gameHandEl, hand);
+          tryShowGameOverOverlay(p);
+          return;
+        }
+
+        for (const cardId of hand) {
+          const el = faceEl(cardId, "card--clickable");
+          let eligible = false;
+          if (imAtt) eligible = cardEligibleForAttacker(p, cardId);
+          else if (imDef) eligible = cardEligibleForDefender(p, cardId);
+          if (eligible) el.classList.add("card--can-play");
+
+          el.addEventListener("click", () => {
+            if (!lastPayload) return;
+            const cur = lastPayload;
+            if (isFinishedGame(cur)) return;
+            if (cur.attacker === you) {
+              if (!cardEligibleForAttacker(cur, cardId)) return;
+              send({ type: "move", action: "attack", card: cardId });
+              return;
+            }
+            if (cur.defender === you) {
+              if (!cardEligibleForDefender(cur, cardId)) return;
+              const tr =
+                transferAllowed(cur) ? firstTransferTarget(cur, cardId) : null;
+              const bt = firstBeatTarget(cur, cardId);
+              if (tr && bt && tr === bt) {
+                ambiguousChoice = { cardId, against: tr };
+                ambiguousStripEl.hidden = false;
+                applyDeckButtonVisibility(cur);
+                return;
+              }
+              if (tr) {
+                send({
+                  type: "move",
+                  action: "transfer",
+                  card: cardId,
+                  against: tr,
+                });
+                return;
+              }
+              if (bt) {
+                send({
+                  type: "move",
+                  action: "defend",
+                  card: cardId,
+                  against: bt,
+                });
+                return;
+              }
+            }
+          });
+
+          gameHandEl.appendChild(el);
+        }
+
+        requestAnimationFrame(() => layoutOverlappingHand(gameHandEl));
+
+        syncAmbiguousStrip(p, you);
+        applyDeckButtonVisibility(p);
+      }
+
+      function renderTable(p) {
+        tableAreaEl.innerHTML = "";
+        const rows = p.table || [];
+        if (rows.length === 0) return;
+        for (const row of rows) {
+          if (row.defend) {
+            const pair = document.createElement("div");
+            pair.className = "table-pair table-pair--beaten";
+            const stack = document.createElement("div");
+            stack.className = "stack-inner";
+            stack.appendChild(
+              faceEl(row.attack, "card--attack card--attack-layer"),
+            );
+            stack.appendChild(faceEl(row.defend, "card--defend-layer"));
+            pair.appendChild(stack);
+            tableAreaEl.appendChild(pair);
+            continue;
+          }
+
+          const pair = document.createElement("div");
+          pair.className = "table-pair table-pair--open";
+          pair.appendChild(faceEl(row.attack, "card--attack"));
+          tableAreaEl.appendChild(pair);
+        }
+      }
+
+      function resetGameView() {
+        lastPayload = null;
+        gameOverOverlayShown = false;
+        gameOverPackCache = null;
+        hideAmbiguousStrip();
+        if (gameOverOverlayEl) gameOverOverlayEl.hidden = true;
+        if (playmatEl) playmatEl.hidden = true;
+        if (deckStackEl) deckStackEl.innerHTML = "";
+        if (trumpSlotEl) trumpSlotEl.innerHTML = "";
+        gameHandEl.innerHTML = "";
+        oppHandEl.innerHTML = "";
+        tableAreaEl.innerHTML = "";
+      }
+
+      function setConnected(on) {
+        document.getElementById("connStatus").textContent = on
+          ? "connected"
+          : "disconnected";
+        document.getElementById("btnCreate").disabled = !on;
+        document.getElementById("btnJoin").disabled = !on;
+        document.getElementById("btnLeave").disabled = !on;
+        if (!on) {
+          waitingAsHost = false;
+          resetGameView();
+          showStartScreen();
+          refreshInviteJoinUI();
+        }
+      }
+
+      function applyServerState(payload) {
+        lastPayload = payload;
+        if (!payload || typeof payload.you !== "number") {
+          log("applyServerState: skipped (no payload or seat)");
+          return;
+        }
+        if (!isFinishedGame(payload)) gameOverOverlayShown = false;
+        if (playmatEl) playmatEl.hidden = false;
+        const you = payload.you;
+        const hands = payload.hands;
+        if (!Array.isArray(hands) || hands.length < 2) {
+          log(
+            "applyServerState: skipped (hands) " +
+              JSON.stringify(hands),
+          );
+          return;
+        }
+
+        dismissStartScreen();
+
+        const mine = hands[you];
+        if (!Array.isArray(mine)) gameHandEl.innerHTML = "";
+
+        const opp = you === 0 ? hands[1] : hands[0];
+        if (stockEmpty(payload) && !isFinishedGame(payload)) {
+          renderOpponentMystery(oppHandEl);
+        } else if (opp && typeof opp.count === "number") {
+          renderOpponentBacks(oppHandEl, opp.count);
+        } else if (Array.isArray(opp)) {
+          renderOpponentBacks(oppHandEl, opp.length);
+        } else {
+          oppHandEl.innerHTML = "";
+        }
+
+        refreshInteractiveUI();
+      }
+
+      function send(msg) {
+        if (!ws || ws.readyState !== WS_READY_STATE_OPEN) {
+          log("send blocked: socket not connected");
+          return;
+        }
+        ws.send(JSON.stringify(msg));
+        log(">> " + JSON.stringify(msg));
+      }
+
+      function handleWsMessage(j) {
+        if (!j || typeof j.type !== "string") {
+          log("message ignored: " + String(j));
+          return;
+        }
+        switch (j.type) {
+          case "joined":
+            document.getElementById("roomCode").value = j.roomId || "";
+            if (j.waiting) {
+              waitingAsHost = true;
+              writeOpenRoom(j.roomId || "");
+            } else {
+              waitingAsHost = false;
+            }
+            log(
+              j.waiting
+                ? `joined room ${j.roomId} — waiting`
+                : `joined room ${j.roomId} seat ${j.seat}`,
+            );
+            refreshInviteJoinUI();
+            break;
+          case "start":
+            waitingAsHost = false;
+            sessionStorage.removeItem(SS_HOST_TAB);
+            clearOpenRoom();
+            refreshInviteJoinUI();
+            log(`start game room ${j.roomId || "?"}`);
+            break;
+          case "left":
+            log("left room");
+            waitingAsHost = false;
+            sessionStorage.removeItem(SS_HOST_TAB);
+            clearOpenRoom();
+            refreshInviteJoinUI();
+            resetGameView();
+            showStartScreen();
+            break;
+          case "room_closed":
+            log("room_closed: " + (j.reason || "?"));
+            waitingAsHost = false;
+            sessionStorage.removeItem(SS_HOST_TAB);
+            clearOpenRoom();
+            refreshInviteJoinUI();
+            resetGameView();
+            showStartScreen();
+            break;
+          case "state":
+            applyServerState(j.payload);
+            break;
+          case "error":
+            log("error: " + (j.message || ""));
+            break;
+          default:
+            log("<< type " + j.type);
+            break;
+        }
+      }
+
+      btnTakeEl.onclick = () => send({ type: "move", action: "take" });
+      btnEndTurnEl.onclick = () => send({ type: "move", action: "endTurn" });
+
+      document.getElementById("btnChooseTransfer").onclick = () => {
+        if (!ambiguousChoice || !ws) return;
+        send({
+          type: "move",
+          action: "transfer",
+          card: ambiguousChoice.cardId,
+          against: ambiguousChoice.against,
+        });
+        hideAmbiguousStrip();
+      };
+      document.getElementById("btnChooseDefend").onclick = () => {
+        if (!ambiguousChoice || !ws) return;
+        send({
+          type: "move",
+          action: "defend",
+          card: ambiguousChoice.cardId,
+          against: ambiguousChoice.against,
+        });
+        hideAmbiguousStrip();
+      };
+      document.getElementById("btnAmbiguousCancel").onclick = () =>
+        hideAmbiguousStrip();
+
+      document.getElementById("gameOverDismiss").onclick = () => {
+        gameOverOverlayEl.hidden = true;
+      };
+
+      document.getElementById("btnConnect").onclick = () => {
+        const url = document.getElementById("wsUrl").value.trim();
+        if (ws) {
+          try {
+            if (ws.readyState === WS_READY_STATE_OPEN)
+              ws.send(JSON.stringify({ type: "leave" }));
+          } catch (_) {}
+          try {
+            ws.close();
+          } catch (_) {}
+        }
+        log("connecting: " + url);
+        pendingWsOpenCallback = null;
+        ws = new WebSocket(url);
+        attachSocketHandlers(ws);
+      };
+
+      document.getElementById("btnInviteJoin").onclick = () => {
+        const btn = document.getElementById("btnInviteJoin");
+        if (!btn || btn.disabled) return;
+        const flow = btn.dataset.flow || "invite";
+        if (flow === "wait") return;
+        ensureConnected(() => {
+          if (flow === "join") {
+            const open = readOpenRoom();
+            if (!open) {
+              log("No invite yet — open another window after Invite babe.");
+              refreshInviteJoinUI();
+              return;
+            }
+            document.getElementById("roomCode").value = open.roomId;
+            send({ type: "join", roomId: open.roomId });
+            return;
+          }
+          sessionStorage.setItem(SS_HOST_TAB, "1");
+          send({ type: "create" });
+        });
+      };
+
+      window.addEventListener("storage", (e) => {
+        if (e.key === LS_OPEN_ROOM) refreshInviteJoinUI();
+      });
+
+      document.getElementById("btnCreate").onclick = () =>
+        send({ type: "create" });
+
+      document.getElementById("btnJoin").onclick = () => {
+        const roomId = document
+          .getElementById("roomCode")
+          .value.trim()
+          .toUpperCase();
+        log("Join clicked, roomId=" + (roomId || "(empty)"));
+        send({ type: "join", roomId });
+      };
+
+      document.getElementById("btnLeave").onclick = () =>
+        send({ type: "leave" });
+
+      applyDefaultWsUrlInput();
+      refreshInviteJoinUI();
+      setupHandLayoutObservers();
+    </script>
+  </body>
+</html>
