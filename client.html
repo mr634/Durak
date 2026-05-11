@@ -44,18 +44,30 @@
         --deck-nudge-y: 0px;
         --trump-stack-z: 2;
         --deck-pile-z: 4;
+        /*
+          MANUAL SIZE:
+          - --ui-zoom — phone: transform scale on #gameShell. Desktop (wide): CSS zoom (reflows layout; use this to “fill” the window).
+          - --card-w / --card-h — base + @media (min-width: 541px) / (max-width: 540px); raise clamp() MAX for bigger cards.
+        */
         --ui-zoom: 1;
+        /* Vertical gap: opponent hand ↔ battle row (deck) ↔ your hand — same value top & bottom of .battle-strip */
+        --hand-deck-vertical-gap: 1.05rem;
       }
 
-      /* Desktop / tablet — ~110% vs base (matches “browser zoom 110%” feel, no transform clipping) */
+      /* Desktop / tablet — larger cards + default zoom so the playmat uses the window (not a tiny top-left box) */
       @media (min-width: 541px) {
         :root {
-          --card-w: clamp(5rem, min(7.5vw, 8.8vmin), 10.25rem);
-          --card-h: clamp(7rem, min(10.6vw, 12.4vmin), 14.25rem);
+          /* ~+20% vs 1.18 — roughly the extra ~120% browser zoom you were using */
+          --ui-zoom: 1.42;
+          --card-w: clamp(5.5rem, min(9.8vmin, 11.8vw), 13rem);
+          --card-h: clamp(7.65rem, min(13.8vmin, 16.2vw), 17.75rem);
         }
       }
 
-      /* Phone: trump under pile; deck+trump shifted left ~10vw for table space */
+      /*
+        Phone / iPhone (max-width: 540px): own --card-w/--card-h; transform scale only (no CSS zoom).
+        Desktop --ui-zoom (1.42) does not apply here — :root --ui-zoom stays 1 unless you set it in this block.
+      */
       @media (max-width: 540px) {
         :root {
           --card-w: clamp(4.25rem, 24vmin, 7.5rem);
@@ -64,9 +76,20 @@
           --trump-stack-z: 2;
           --deck-pile-z: 4;
         }
+        body {
+          padding-left: max(0.6rem, env(safe-area-inset-left, 0px));
+          padding-right: max(0.6rem, env(safe-area-inset-right, 0px));
+          padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+        }
+        #gameShell {
+          zoom: normal;
+          transform: scale(var(--ui-zoom));
+          transform-origin: top center;
+        }
         #gameShell.panel {
           width: fit-content;
           min-width: 100%;
+          max-width: 100%;
           box-sizing: border-box;
         }
         .battle-strip {
@@ -136,6 +159,13 @@
           -webkit-overflow-scrolling: touch;
         }
       }
+      /*
+        Vertical rhythm:
+        - :root --hand-deck-vertical-gap — margin above & below .battle-strip (opp hand↔deck↔your hand); raise/lower both sides together.
+        “Empty strip below my hand” — also tweak:
+        body { padding } last value, section.panel { padding-bottom }, .felt--playmat padding,
+        .player-hand-block { padding-bottom }, .deck-actions-under-hand { margin-top } (hand↔buttons only).
+      */
       body {
         scrollbar-width: none;
         -ms-overflow-style: none;
@@ -241,7 +271,6 @@
       }
       /* Same typography / ink as textured buttons */
       .turn-status {
-        margin: 0 0 0.45rem;
         font-family: var(--card-corner-font);
         font-weight: 700;
         font-style: normal;
@@ -252,6 +281,19 @@
         text-transform: none;
         min-height: 1.35em;
       }
+      /* Under your hand, above Take / End attack (was top of playmat) */
+      .turn-status--under-hand {
+        margin: 0.4rem 0 0.2rem;
+        width: 100%;
+        position: relative;
+        z-index: 4;
+        pointer-events: none;
+      }
+      .turn-status--under-hand:empty {
+        display: none;
+        margin: 0;
+        min-height: 0;
+      }
       .battle-strip {
         position: relative;
         z-index: 1;
@@ -259,7 +301,7 @@
         align-items: flex-end;
         justify-content: space-between;
         gap: 0.75rem 1rem;
-        margin: 0.65rem 0;
+        margin: var(--hand-deck-vertical-gap) 0;
         min-height: calc(var(--card-h) + 3rem);
         overflow: visible;
       }
@@ -328,6 +370,8 @@
         flex-direction: column;
         gap: 0.4rem;
         width: 100%;
+        position: relative;
+        z-index: 2;
       }
       /* Yellow actions sit under your hand so they don’t overlap / steal clicks */
       .deck-actions-under-hand {
@@ -736,34 +780,40 @@
       #gameShell {
         position: relative;
         z-index: 100;
-        transform: scale(var(--ui-zoom));
-        transform-origin: top center;
+        width: 100%;
+        min-width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
       }
-      /* Desktop: compact height — no empty stretch under your hand (buttons sit under deck column) */
+      /*
+        Wide: CSS zoom reflows the subtree — unlike transform:scale(), the game actually grows and uses the viewport.
+        Top/left stay anchored in normal flow; tweak --ui-zoom in the desktop :root block above.
+      */
       @media (min-width: 541px) {
-        /*
-          Table cloth art: narrow slightly + anchor to top so ~bottom 40% of the bitmap
-          falls outside the paint box (cropped). Gradient layer fills underneath.
-        */
+        #gameShell {
+          zoom: var(--ui-zoom);
+        }
+        #gameShell.panel {
+          width: 100%;
+          min-width: 100%;
+          max-width: none;
+        }
         .felt--playmat {
+          width: 100%;
+          min-width: 0;
+          max-width: none;
           min-height: 0;
           padding-bottom: 0.35rem;
-          background-size: 78% 168%, 100% 100%;
-          background-position: center top, center;
         }
         .battle-strip {
+          width: 100%;
+          max-width: none;
           min-height: calc(var(--card-h) + 0.75rem);
-          margin-bottom: 0.35rem;
+          margin-top: var(--hand-deck-vertical-gap);
+          margin-bottom: var(--hand-deck-vertical-gap);
         }
         .player-hand-block {
           padding-bottom: 0.15rem;
-        }
-        .table-column {
-          align-items: center;
-        }
-        .table-wrap {
-          max-width: min(68%, 28rem);
-          justify-content: center;
         }
       }
     </style>
@@ -794,7 +844,6 @@
       </div>
 
       <div id="playmat" class="felt felt--playmat" hidden>
-        <p id="turnStatusLine" class="turn-status" aria-live="polite"></p>
         <div class="hand-row" id="oppHand" aria-label="Opponent cards"></div>
 
         <div class="battle-strip">
@@ -816,6 +865,11 @@
             id="gameHand"
             aria-label="Your cards"
           ></div>
+          <p
+            id="turnStatusLine"
+            class="turn-status turn-status--under-hand"
+            aria-live="polite"
+          ></p>
           <div
             id="deckActionsRow"
             class="deck-actions-row deck-actions-under-hand"
@@ -943,45 +997,97 @@
         return rank;
       }
 
+      /** Engine rank → word stem in assets/cards/*.png filenames */
+      const CARD_RANK_TO_BASENAME = {
+        "6": "six",
+        "7": "seven",
+        "8": "eight",
+        "9": "nine",
+        "10": "ten",
+        J: "jack",
+        Q: "queen",
+        K: "king",
+        A: "ace",
+      };
+      const CARD_SUIT_TO_BASENAME = {
+        H: "hearts",
+        D: "diamonds",
+        S: "spades",
+        C: "clubs",
+      };
+
       /**
-       * Maps engine card to assets/cards filename (shared art for red vs black pairs).
+       * Ordered PNG basenames to try for one card (first hit wins).
+       * 1) Per-card: {rank}_{suit}.png (e.g. ace_hearts.png)
+       * 2) Paired: {rank}_hearts_diamonds.png / {rank}_spades_clubs.png
+       * 3) Legacy shared courts: ace_hearts_diamonds.png, … / nonface_*.png for 6–10
        */
-      function cardImageBasename(rank, suit) {
-        const pair =
-          suit === "H" || suit === "D" ? "hearts_diamonds" : "spades_clubs";
-        if (rank === "A") return `ace_${pair}.png`;
-        if (rank === "J") return `jack_${pair}.png`;
-        if (rank === "Q") return `queen_${pair}.png`;
-        if (rank === "K") return `king_${pair}.png`;
-        return `nonface_${pair}.png`;
+      function cardAssetFilenameCandidates(rank, suit) {
+        const rw = CARD_RANK_TO_BASENAME[rank];
+        const sw = CARD_SUIT_TO_BASENAME[suit];
+        /** @param {string[]} list @param {string} name */
+        const add = (list, name) => {
+          if (name && !list.includes(name)) list.push(name);
+        };
+        const out = [];
+        if (rw && sw) add(out, `${rw}_${sw}.png`);
+
+        if (rw) {
+          if (suit === "H" || suit === "D") add(out, `${rw}_hearts_diamonds.png`);
+          if (suit === "S" || suit === "C")
+            add(out, `${rw}_spades_clubs.png`);
+        }
+
+        if (["J", "Q", "K", "A"].includes(rank) && rw) {
+          const pair =
+            suit === "H" || suit === "D" ? "hearts_diamonds" : "spades_clubs";
+          const face =
+            rank === "J"
+              ? "jack"
+              : rank === "Q"
+                ? "queen"
+                : rank === "K"
+                  ? "king"
+                  : "ace";
+          add(out, `${face}_${pair}.png`);
+        } else if (rw && !["J", "Q", "K", "A"].includes(rank)) {
+          const pair =
+            suit === "H" || suit === "D" ? "hearts_diamonds" : "spades_clubs";
+          add(out, `nonface_${pair}.png`);
+        }
+
+        return out;
       }
 
-      function cardImageUrl(cardId) {
+      function cardImageUrlCandidates(cardId) {
         const p = parseCardId(cardId);
-        if (!p) return null;
-        const file = cardImageBasename(p.rank, p.suit);
-        return `/assets/cards/${encodeURIComponent(file)}`;
+        if (!p) return [];
+        return cardAssetFilenameCandidates(p.rank, p.suit).map(
+          (f) => `/assets/cards/${encodeURIComponent(f)}`,
+        );
       }
 
-      /** Warm Safari/WebKit decode cache — only ten PNGs for this deck art style */
-      const CARD_FACE_PRELOAD_BASES = [
-        "nonface_hearts_diamonds.png",
-        "nonface_spades_clubs.png",
-        "ace_hearts_diamonds.png",
-        "ace_spades_clubs.png",
-        "jack_hearts_diamonds.png",
-        "jack_spades_clubs.png",
-        "queen_hearts_diamonds.png",
-        "queen_spades_clubs.png",
-        "king_hearts_diamonds.png",
-        "king_spades_clubs.png",
-      ];
+      function collectAllCardFacePreloadUrls() {
+        const set = new Set();
+        const out = [];
+        for (const rank of RANKS) {
+          for (const suit of SUITS) {
+            for (const url of cardImageUrlCandidates(`${rank}${suit}`)) {
+              if (!set.has(url)) {
+                set.add(url);
+                out.push(url);
+              }
+            }
+          }
+        }
+        return out;
+      }
 
       function preloadCardFaceAssets() {
-        for (const base of CARD_FACE_PRELOAD_BASES) {
+        for (const url of collectAllCardFacePreloadUrls()) {
           const im = new Image();
           im.decoding = "async";
-          im.src = `/assets/cards/${encodeURIComponent(base)}`;
+          im.src = url;
         }
       }
 
@@ -995,7 +1101,7 @@
 
       /**
        * Face-up card DOM. Tries custom art under assets/cards; on error falls back to legacy markup.
-       * Single render site for table, hands, trump, practice.
+       * Rank + suit overlays stay on every card (even full-illustration PNGs with no text in the art).
        */
       function faceEl(cardId, extraClass) {
         const p = parseCardId(cardId);
@@ -1009,7 +1115,7 @@
         const ui = SUIT_UI[p.suit];
         const overlayClass = ui.red ? "card--overlay-red" : "card--overlay-navy";
         const rankLine = rankOverlayLabel(p.rank);
-        const url = cardImageUrl(cardId);
+        const urls = cardImageUrlCandidates(cardId);
 
         el.title = cardId;
         el.className = `card card--face-art ${overlayClass} ${extraClass || ""}`.trim();
@@ -1031,19 +1137,33 @@
         br.className = "card__overlay-corner card__overlay-corner--br";
         br.innerHTML = cornerInner;
 
-        const fallback = () => {
+        const finishPlain = () => {
           img.onerror = null;
+          img.onload = null;
           img.remove();
           tl.remove();
           br.remove();
           applyPlainFaceMarkup(el, p, ui, extraClass);
         };
 
-        img.onerror = fallback;
-        img.src = url;
+        let urlIndex = 0;
+        img.onload = () => {
+          img.onerror = null;
+        };
+        img.onerror = () => {
+          urlIndex += 1;
+          if (urlIndex >= urls.length) {
+            finishPlain();
+            return;
+          }
+          img.src = urls[urlIndex];
+        };
+
         el.appendChild(img);
         el.appendChild(tl);
         el.appendChild(br);
+        if (urls.length === 0) finishPlain();
+        else img.src = urls[0];
         return el;
       }
 
@@ -1430,7 +1550,6 @@
       const btnTakeEl = document.getElementById("btnTake");
       const btnEndTurnEl = document.getElementById("btnEndTurn");
       const deckActionsRowEl = document.getElementById("deckActionsRow");
-
       function log(line) {
         console.log(String(line));
       }
