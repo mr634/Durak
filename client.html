@@ -741,9 +741,15 @@
       }
       /* Desktop: compact height — no empty stretch under your hand (buttons sit under deck column) */
       @media (min-width: 541px) {
+        /*
+          Table cloth art: narrow slightly + anchor to top so ~bottom 40% of the bitmap
+          falls outside the paint box (cropped). Gradient layer fills underneath.
+        */
         .felt--playmat {
           min-height: 0;
           padding-bottom: 0.35rem;
+          background-size: 78% 168%, 100% 100%;
+          background-position: center top, center;
         }
         .battle-strip {
           min-height: calc(var(--card-h) + 0.75rem);
@@ -751,6 +757,13 @@
         }
         .player-hand-block {
           padding-bottom: 0.15rem;
+        }
+        .table-column {
+          align-items: center;
+        }
+        .table-wrap {
+          max-width: min(68%, 28rem);
+          justify-content: center;
         }
       }
     </style>
