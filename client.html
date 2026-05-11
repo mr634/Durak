@@ -16,9 +16,13 @@
         --felt: #4a5568;
         --felt-deep: #383f4f;
         --felt-light: #5c6578;
-        /* Scale with viewport so the table fills the screen without browser zoom */
-        --card-w: clamp(3rem, min(5.2vw, 5.5vmin), 6.75rem);
-        --card-h: clamp(4.25rem, min(7.4vw, 7.8vmin), 9.55rem);
+        /*
+          Layout = one file; tune desktop vs phone in the two @media blocks below.
+          Do not fork client.html — game logic must stay single-source.
+        */
+        /* Wide screens / localhost desktop preview — larger “zoom” */
+        --card-w: clamp(4.5rem, min(6.8vw, 8vmin), 9.25rem);
+        --card-h: clamp(6.35rem, min(9.6vw, 11.2vmin), 13rem);
         --lift: calc(var(--card-h) * -0.3);
         --card-corner-font: "Cormorant Garamond", "Palatino Linotype", Palatino,
           Georgia, serif;
@@ -28,23 +32,111 @@
         --tex-table: url("/assets/ui/table_background.png");
         /* Face-down art: <img class="card__back-img"> uses html[data-card-back-src] (same ?v= as server injects) */
         --tex-button: url("/assets/ui/button_background.png");
+
+        /*
+          Desktop: draw pile sits ON TOP of trump (classic Durak); trump peeks out beside pile.
+          Phone: overrides below — trump beside pile, fully visible.
+          --deck-visual-w is set in JS from pile thickness.
+        */
+        --deck-trump-gap: 0.5rem;
+        --trump-nudge-x: 0px;
+        --trump-nudge-y: 0px;
+        --deck-nudge-x: 0px;
+        --deck-nudge-y: 0px;
+        --trump-stack-z: 2;
+        --deck-pile-z: 4;
+        /* Whole play area scale (1 = normal). Try 1.05–1.15 if cards still feel small. */
+        --ui-zoom: 1;
       }
+
+      /* Phone: trump under pile; deck+trump shifted left ~10vw for table space */
+      @media (max-width: 540px) {
+        :root {
+          --card-w: clamp(4.25rem, 24vmin, 7.5rem);
+          --card-h: clamp(6rem, 34vmin, 10.6rem);
+          --deck-trump-gap: 0.5rem;
+          --trump-stack-z: 2;
+          --deck-pile-z: 4;
+        }
+        #gameShell.panel {
+          width: fit-content;
+          min-width: 100%;
+          box-sizing: border-box;
+        }
+        .battle-strip {
+          width: fit-content;
+          min-width: 100%;
+          box-sizing: border-box;
+        }
+        .battle-strip > .deck-column:first-of-type {
+          transform: translateX(-10vw);
+        }
+        .deck-trump-scene {
+          width: calc(
+            var(--deck-visual-w, var(--card-w)) + var(--card-h) +
+              var(--deck-trump-gap)
+          );
+        }
+        .trump-slot-side {
+          left: 0;
+          right: auto;
+        }
+        .table-column {
+          align-items: flex-start;
+        }
+        .table-wrap {
+          flex-wrap: wrap;
+          justify-content: flex-start;
+          width: auto;
+          max-width: none;
+        }
+      }
+      /*
+        Scrollbars hidden (Firefox / Chromium / legacy Edge); scrolling unchanged.
+        Felt fills the scrollable canvas; gradient fallback covers any extra area.
+      */
       html {
-        width: 100vw;
-        min-height: 100vh;
-        height: 100%;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        width: 100%;
+        min-width: 100%;
+        min-height: 100%;
         overflow-x: hidden;
-        background-color: #3d4a5c;
-        background-image: var(--tex-table);
-        background-size: cover;
-        background-position: center;
-        background-repeat: no-repeat;
-        background-attachment: fixed;
+        background-color: var(--felt-deep);
+        background-image: var(--tex-table),
+          linear-gradient(
+            165deg,
+            var(--felt-light) 0%,
+            var(--felt) 48%,
+            var(--felt-deep) 100%
+          );
+        background-size: cover, 100% 100%;
+        background-position: center top, center;
+        background-repeat: no-repeat, no-repeat;
+        background-attachment: scroll, scroll;
+      }
+      html::-webkit-scrollbar {
+        width: 0;
+        height: 0;
+      }
+      body::-webkit-scrollbar {
+        width: 0;
+        height: 0;
+      }
+      @media (max-width: 540px) {
+        html {
+          overflow-x: auto;
+          overflow-y: auto;
+          -webkit-overflow-scrolling: touch;
+        }
       }
       body {
+        scrollbar-width: none;
+        -ms-overflow-style: none;
         font-family: system-ui, sans-serif;
         max-width: none;
         width: 100%;
+        min-width: 100%;
         margin: 0 auto;
         padding: 0.4rem 0.6rem 1rem;
         box-sizing: border-box;
@@ -52,6 +144,7 @@
         background: transparent;
         min-height: 100vh;
         min-height: 100dvh;
+        min-height: 100%;
       }
       button {
         appearance: none;
@@ -76,8 +169,7 @@
         transition: transform 0.08s ease, box-shadow 0.15s ease, filter 0.12s ease;
       }
       button:hover:not(:disabled) {
-        box-shadow: 0 0 0 2px rgba(184, 134, 0, 0.85),
-          0 0 14px rgba(184, 134, 0, 0.45);
+        filter: brightness(1.06);
       }
       button:active:not(:disabled) {
         transform: translateY(1px);
@@ -92,15 +184,14 @@
         padding: 0.1em 0.35em;
         border-radius: 4px;
       }
-      /* Let the full-page table cloth show through (was solid white — hid all textures). */
       section.panel {
-        background: rgba(255, 255, 255, 0.78);
-        backdrop-filter: blur(6px);
+        background: transparent;
+        backdrop-filter: none;
         border-radius: 12px;
-        padding: 0.65rem 0.75rem 0.85rem;
-        margin-bottom: 0.75rem;
-        box-shadow: 0 2px 16px rgba(0, 0, 0, 0.12);
-        border: 1px solid rgba(255, 255, 255, 0.35);
+        padding: 0.35rem 0.25rem 0.65rem;
+        margin-bottom: 0.35rem;
+        box-shadow: none;
+        border: none;
         width: 100%;
         max-width: none;
         box-sizing: border-box;
@@ -125,8 +216,8 @@
         border-radius: 12px;
         padding: 0.65rem 0.75rem;
         margin: 0.4rem 0;
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        border: none;
+        box-shadow: none;
       }
       .felt--playmat {
         margin-top: 0.35rem;
@@ -154,8 +245,8 @@
       }
       .deck-column {
         width: fit-content;
-        min-width: 6.25rem;
-        max-width: 11rem;
+        min-width: 0;
+        max-width: min(100%, 20rem);
         flex-shrink: 0;
         overflow: visible;
         display: flex;
@@ -167,30 +258,30 @@
         visibility: hidden;
         pointer-events: none;
       }
-      /*
-        Trump = hand-sized card, rotated −90° so the face aims toward the table (right).
-        Slot flush with scene’s inner edge (toward table); ⅔ stays under the pile, ⅓ shows.
-      */
+      /* Width = pile + slice of trump sticking out from under the stack */
       .deck-trump-scene {
         position: relative;
         height: var(--card-h);
-        width: calc(var(--deck-visual-w, var(--card-w)) + var(--card-h) / 3);
+        width: calc(
+          var(--deck-visual-w, var(--card-w)) + var(--card-h) * 0.38
+        );
         overflow: visible;
         margin-left: auto;
         align-self: flex-end;
       }
       .trump-slot-side {
         position: absolute;
-        right: 0;
         left: auto;
+        right: 0;
         bottom: 0;
-        z-index: 1;
+        z-index: var(--trump-stack-z);
         width: var(--card-h);
         height: var(--card-w);
         display: flex;
         align-items: center;
         justify-content: center;
         pointer-events: none;
+        transform: translate(var(--trump-nudge-x), var(--trump-nudge-y));
       }
       .trump-slot-side .card {
         width: var(--card-w);
@@ -205,7 +296,8 @@
         bottom: 0;
         height: var(--card-h);
         width: var(--deck-visual-w, var(--card-w));
-        z-index: 2;
+        z-index: var(--deck-pile-z);
+        transform: translate(var(--deck-nudge-x), var(--deck-nudge-y));
       }
       .deck-stack .deck-layer {
         position: absolute;
@@ -320,7 +412,7 @@
         flex: 1;
         display: flex;
         flex-direction: column;
-        align-items: center;
+        align-items: flex-start;
         justify-content: flex-end;
         min-width: 0;
       }
@@ -372,21 +464,10 @@
       .card--clickable {
         cursor: pointer;
       }
-      /*
-        YOUR hand: playable cards — thin yellow rim + lift on hover.
-      */
-      #gameHand .card.card--can-play {
-        outline: 1px solid rgba(255, 214, 120, 0.78);
-        outline-offset: 1px;
-        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28),
-          inset 0 1px 0 rgba(255, 255, 255, 0.85),
-          0 0 0 1px rgba(255, 230, 160, 0.28);
-      }
       #gameHand .card.card--can-play:hover {
         transform: translateY(var(--lift));
         box-shadow: 0 10px 22px rgba(0, 0, 0, 0.38),
           inset 0 1px 0 rgba(255, 255, 255, 0.85);
-        outline: 1px solid rgba(255, 230, 160, 0.95);
         z-index: 3;
         filter: brightness(1.03);
       }
@@ -420,7 +501,7 @@
         padding: 0;
         overflow: hidden;
         justify-content: unset;
-        background: #265329;
+        background: #1f2937;
       }
       .card__face-img {
         position: absolute;
@@ -515,21 +596,12 @@
         background-position: center;
         background-repeat: repeat;
       }
-      .lobby-row {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 0.5rem 0.75rem;
-        margin-bottom: 0.65rem;
-      }
-      .lobby-row label {
-        font-size: 0.88rem;
-      }
       .table-wrap {
         display: flex;
         flex-wrap: wrap;
         gap: 0.65rem;
         align-items: flex-end;
+        justify-content: flex-start;
       }
       /* Open attack only (no placeholder until defender plays) */
       .table-pair--open {
@@ -642,15 +714,8 @@
       #gameShell {
         position: relative;
         z-index: 100;
-      }
-      details.lobby-advanced {
-        margin-bottom: 0.65rem;
-        font-size: 0.85rem;
-        color: #334155;
-      }
-      details.lobby-advanced summary {
-        cursor: pointer;
-        font-weight: 600;
+        transform: scale(var(--ui-zoom));
+        transform-origin: top center;
       }
     </style>
   </head>
@@ -669,27 +734,15 @@
     </div>
 
     <section id="gameShell" class="panel" hidden>
-      <details class="lobby-advanced">
-        <summary>Connection</summary>
-        <div class="lobby-row">
-          <label
-            >WS
-            <input
-              id="wsUrl"
-              type="text"
-              size="34"
-              value=""
-              placeholder="wss://your-app — filled automatically"
-              autocomplete="off"
-            /></label>
-          <button id="btnConnect" type="button">Connect</button>
-          <span id="connStatus">disconnected</span>
-          <button id="btnCreate" type="button" disabled>Create</button>
-          <input id="roomCode" placeholder="Room" size="7" autocomplete="off" />
-          <button id="btnJoin" type="button" disabled>Join</button>
-          <button id="btnLeave" type="button" disabled>Leave</button>
-        </div>
-      </details>
+      <div id="connStub" hidden>
+        <input id="wsUrl" type="text" value="" autocomplete="off" />
+        <button id="btnConnect" type="button" hidden></button>
+        <span id="connStatus">disconnected</span>
+        <button id="btnCreate" type="button" disabled hidden></button>
+        <input id="roomCode" autocomplete="off" />
+        <button id="btnJoin" type="button" disabled hidden></button>
+        <button id="btnLeave" type="button" disabled hidden></button>
+      </div>
 
       <div id="playmat" class="felt felt--playmat" hidden>
         <p class="hand-label">Babe</p>
@@ -1022,6 +1075,62 @@
       /** @type {(() => void) | null} */
       let pendingWsOpenCallback = null;
 
+      /** Server tells us when a host is waiting; second screen auto-joins (same Wi‑Fi / deployment). */
+      let lobbyPollTimer = null;
+      /** Room id we are auto-joining (avoid duplicate attempts until WS settles). */
+      let lobbyAutoJoinRoom = null;
+
+      function stopLobbyPoll() {
+        if (lobbyPollTimer != null) {
+          clearInterval(lobbyPollTimer);
+          lobbyPollTimer = null;
+        }
+      }
+
+      function startLobbyPoll() {
+        stopLobbyPoll();
+        lobbyPollTimer = setInterval(tickLobbyPoll, 1100);
+      }
+
+      function tickLobbyPoll() {
+        if (waitingAsHost) return;
+        if (sessionStorage.getItem(SS_HOST_TAB) === "1") return;
+        const ss = document.getElementById("startScreen");
+        if (!ss || ss.hidden) return;
+        if (lobbyAutoJoinRoom) return;
+        const wsUrlEl = document.getElementById("wsUrl");
+        if (!wsUrlEl || !String(wsUrlEl.value || "").trim()) return;
+        void pollWaitingRoomOnce();
+      }
+
+      async function pollWaitingRoomOnce() {
+        if (waitingAsHost) return;
+        if (sessionStorage.getItem(SS_HOST_TAB) === "1") return;
+        const ss = document.getElementById("startScreen");
+        if (!ss || ss.hidden) return;
+        if (lobbyAutoJoinRoom) return;
+        const wsUrlEl = document.getElementById("wsUrl");
+        if (!wsUrlEl || !String(wsUrlEl.value || "").trim()) return;
+        try {
+          const r = await fetch("/api/waiting-room", { cache: "no-store" });
+          if (!r.ok) return;
+          const j = await r.json();
+          const id =
+            j && j.roomId != null
+              ? String(j.roomId).trim().toUpperCase()
+              : "";
+          if (!id) return;
+          lobbyAutoJoinRoom = id;
+          stopLobbyPoll();
+          writeOpenRoom(id);
+          ensureConnected(() => {
+            send({ type: "join", roomId: id });
+          });
+        } catch (_) {
+          lobbyAutoJoinRoom = null;
+        }
+      }
+
       function readOpenRoom() {
         const fromUrl = parseRoomFromLocation();
         if (fromUrl) return { roomId: fromUrl, ts: Date.now() };
@@ -1056,6 +1165,7 @@
       }
 
       function dismissStartScreen() {
+        stopLobbyPoll();
         const ss = document.getElementById("startScreen");
         const shell = document.getElementById("gameShell");
         if (ss) ss.hidden = true;
@@ -1067,6 +1177,8 @@
         const shell = document.getElementById("gameShell");
         if (ss) ss.hidden = false;
         if (shell) shell.hidden = true;
+        lobbyAutoJoinRoom = null;
+        startLobbyPoll();
       }
 
       function refreshInviteJoinUI() {
@@ -1129,7 +1241,7 @@
         const url = document.getElementById("wsUrl").value.trim();
         if (!url) {
           log(
-            "Set WebSocket URL under Connection (open page over http(s) to auto-fill).",
+            "No WebSocket URL — open this page over http(s) so it can auto-fill.",
           );
           return;
         }
@@ -1244,11 +1356,48 @@
         console.log(String(line));
       }
 
-      /** px — visual gap between cards when the row has room */
-      const HAND_GAP_PX = 8;
+      function isNarrowHandLayout() {
+        try {
+          return (
+            typeof window !== "undefined" &&
+            window.matchMedia &&
+            window.matchMedia("(max-width: 540px)").matches
+          );
+        } catch {
+          return false;
+        }
+      }
+
+      /** px — gap between overlapping cards when the row has extra space */
+      function handGapPx() {
+        return isNarrowHandLayout() ? 5 : 8;
+      }
 
       function handMinAdvancePx(cardWidthPx) {
-        return Math.max(26, Math.round(cardWidthPx * 0.38));
+        const narrow = isNarrowHandLayout();
+        const ratio = narrow ? 0.33 : 0.38;
+        const floor = narrow ? 20 : 26;
+        return Math.max(floor, Math.round(cardWidthPx * ratio));
+      }
+
+      /** Opponent’s backs on YOUR screen only — very tight overlap (no suit to read). */
+      function isOpponentHandContainer(containerEl) {
+        return !!(containerEl && containerEl.id === "oppHand");
+      }
+
+      function handMinAdvancePxFor(containerEl, cardWidthPx) {
+        if (isOpponentHandContainer(containerEl)) {
+          const narrow = isNarrowHandLayout();
+          const ratio = narrow ? 0.12 : 0.16;
+          const floor = narrow ? 8 : 11;
+          return Math.max(floor, Math.round(cardWidthPx * ratio));
+        }
+        return handMinAdvancePx(cardWidthPx);
+      }
+
+      function handGapPxFor(containerEl) {
+        if (isOpponentHandContainer(containerEl)) return 2;
+        return handGapPx();
       }
 
       function maxCardsOneRow(availPx, cardWPx, minAdvPx) {
@@ -1292,7 +1441,7 @@
             containerEl.getBoundingClientRect().width ||
             320,
         );
-        const minAdv = handMinAdvancePx(cw);
+        const minAdv = handMinAdvancePxFor(containerEl, cw);
         const rowCounts = splitHandIntoRows(cards.length, avail, cw, minAdv);
 
         cards.forEach((c) => c.remove());
@@ -1305,7 +1454,13 @@
           idx += n;
           const strip = document.createElement("div");
           strip.className = "hand-strip";
-          const advPx = advanceForRow(n, avail, cw, HAND_GAP_PX, minAdv);
+          const advPx = advanceForRow(
+            n,
+            avail,
+            cw,
+            handGapPxFor(containerEl),
+            minAdv,
+          );
           strip.style.setProperty("--hand-advance", `${advPx}px`);
           slice.forEach((card, i) => {
             card.style.zIndex = String(i + 1);
@@ -1707,6 +1862,7 @@
               writeOpenRoom(j.roomId || "");
             } else {
               waitingAsHost = false;
+              lobbyAutoJoinRoom = null;
             }
             log(
               j.waiting
@@ -1747,12 +1903,15 @@
             log("error: " + (j.message || ""));
             {
               const em = String(j.message || "").toLowerCase();
+              lobbyAutoJoinRoom = null;
               if (
                 em.includes("room not found") ||
                 em.includes("room is full")
               ) {
                 clearOpenRoom();
               }
+              const ss = document.getElementById("startScreen");
+              if (ss && !ss.hidden && !waitingAsHost) startLobbyPoll();
             }
             break;
           default:
@@ -1874,6 +2033,19 @@
       applyDefaultWsUrlInput();
       refreshInviteJoinUI();
       setupHandLayoutObservers();
+      if (typeof window !== "undefined" && window.matchMedia) {
+        window
+          .matchMedia("(max-width: 540px)")
+          .addEventListener("change", () => {
+            requestAnimationFrame(() => {
+              if (gameHandEl && gameHandEl.querySelector(".card"))
+                layoutOverlappingHand(gameHandEl);
+              if (oppHandEl && oppHandEl.querySelector(".card"))
+                layoutOverlappingHand(oppHandEl);
+            });
+          });
+      }
+      startLobbyPoll();
     </script>
   </body>
 </html>

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Durak — iPhone preview</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        min-height: 100dvh;
+        background: linear-gradient(165deg, #1e293b 0%, #0f172a 55%, #020617 100%);
+        color: #e2e8f0;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 1rem 1rem 1.5rem;
+      }
+      h1 {
+        font-size: 1.05rem;
+        font-weight: 600;
+        margin: 0 0 0.4rem;
+        letter-spacing: 0.02em;
+      }
+      .hint {
+        font-size: 0.8rem;
+        line-height: 1.45;
+        color: #94a3b8;
+        margin: 0 0 1rem;
+        text-align: center;
+        max-width: 32rem;
+      }
+      .hint code {
+        font-size: 0.78em;
+        background: rgba(15, 23, 42, 0.65);
+        padding: 0.12em 0.35em;
+        border-radius: 4px;
+      }
+      .stage {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+      }
+      .scale {
+        transform-origin: top center;
+      }
+      .phone {
+        position: relative;
+        padding: 11px;
+        border-radius: 42px;
+        background: linear-gradient(
+          155deg,
+          #475569 0%,
+          #334155 35%,
+          #1e293b 100%
+        );
+        box-shadow:
+          0 0 0 1px rgba(255, 255, 255, 0.09),
+          0 28px 56px rgba(0, 0, 0, 0.5),
+          inset 0 1px 0 rgba(255, 255, 255, 0.07);
+      }
+      .phone-notch {
+        position: absolute;
+        top: 11px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 118px;
+        height: 27px;
+        background: #0f172a;
+        border-radius: 0 0 16px 16px;
+        z-index: 2;
+        pointer-events: none;
+      }
+      .screen-wrap {
+        width: 390px;
+        height: 844px;
+        border-radius: 31px;
+        overflow: hidden;
+        background: #000;
+        position: relative;
+      }
+      .screen-wrap iframe {
+        width: 100%;
+        height: 100%;
+        border: none;
+        display: block;
+      }
+      @media (max-height: 900px) {
+        .scale {
+          transform: scale(0.88);
+        }
+      }
+      @media (max-height: 780px) {
+        .scale {
+          transform: scale(0.76);
+        }
+      }
+      @media (max-height: 680px) {
+        .scale {
+          transform: scale(0.65);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>iPhone preview</h1>
+    <p class="hint">
+      Simulates a typical iPhone portrait viewport
+      <strong>390 × 844</strong> (Safari logic points, iPhone 12–15 class). Same
+      origin as the game so WebSockets work. Use
+      <code>/iphone-preview.html</code> on Railway too.
+    </p>
+    <div class="stage">
+      <div class="scale">
+        <div class="phone">
+          <div class="phone-notch" aria-hidden="true"></div>
+          <div class="screen-wrap">
+            <iframe title="Durak game" src="/"></iframe>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

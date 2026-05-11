@@ -22,6 +22,8 @@
  *   { "type": "left" }
  *
  * Browser UI: http://localhost:8787/ (same PORT as WebSocket)
+ *
+ * HTTP: GET /api/waiting-room → { "roomId": "<code>" | null } — host alone in lobby
  */
 
 "use strict";
@@ -270,6 +272,26 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (req.method === "GET" && pathname === "/api/waiting-room") {
+    let waitingId = null;
+    for (const [id, room] of rooms) {
+      if (
+        room.state == null &&
+        room.seats[0] != null &&
+        room.seats[1] == null
+      ) {
+        waitingId = id;
+        break;
+      }
+    }
+    res.writeHead(200, {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+    });
+    res.end(JSON.stringify({ roomId: waitingId }));
+    return;
+  }
+
   if (req.method === "GET" && pathname.startsWith("/cards/")) {
     const rel = pathname.slice("/cards/".length).replace(/^\/+|\/+$/g, "");
     const abs = safeJoinUnder(path.join(__dirname, "cards"), rel);
@@ -293,6 +315,40 @@ const server = http.createServer((req, res) => {
     }
     const ext = path.extname(abs).toLowerCase();
     sendAssetFile(req, res, abs, ext, ASSET_CACHE_CONTROL);
+    return;
+  }
+
+  if (req.method === "GET" && pathname === "/iphone-preview.html") {
+    const file = path.join(__dirname, "iphone-preview.html");
+    fs.readFile(file, (err, data) => {
+      if (err) {
+        res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+        res.end("Missing iphone-preview.html next to server.js.\n");
+        return;
+      }
+      res.writeHead(200, {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store",
+      });
+      res.end(data);
+    });
+    return;
+  }
+
+  if (req.method === "GET" && pathname === "/desktop-preview.html") {
+    const file = path.join(__dirname, "desktop-preview.html");
+    fs.readFile(file, (err, data) => {
+      if (err) {
+        res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+        res.end("Missing desktop-preview.html next to server.js.\n");
+        return;
+      }
+      res.writeHead(200, {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store",
+      });
+      res.end(data);
+    });
     return;
   }
 

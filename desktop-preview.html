@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Durak — desktop preview</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        min-height: 100dvh;
+        background: linear-gradient(165deg, #1e293b 0%, #0f172a 55%, #020617 100%);
+        color: #e2e8f0;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 1rem 1rem 1.5rem;
+      }
+      h1 {
+        font-size: 1.05rem;
+        font-weight: 600;
+        margin: 0 0 0.4rem;
+        letter-spacing: 0.02em;
+      }
+      .hint {
+        font-size: 0.8rem;
+        line-height: 1.45;
+        color: #94a3b8;
+        margin: 0 0 1rem;
+        text-align: center;
+        max-width: 36rem;
+      }
+      .hint code {
+        font-size: 0.78em;
+        background: rgba(15, 23, 42, 0.65);
+        padding: 0.12em 0.35em;
+        border-radius: 4px;
+      }
+      .stage {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+      }
+      .scale {
+        transform-origin: top center;
+      }
+      .monitor {
+        position: relative;
+        padding: 14px 14px 28px;
+        border-radius: 12px;
+        background: linear-gradient(
+          160deg,
+          #475569 0%,
+          #334155 40%,
+          #1e293b 100%
+        );
+        box-shadow:
+          0 0 0 1px rgba(255, 255, 255, 0.08),
+          0 28px 56px rgba(0, 0, 0, 0.45),
+          inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      }
+      .monitor::after {
+        content: "";
+        position: absolute;
+        bottom: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 48%;
+        height: 8px;
+        background: #0f172a;
+        border-radius: 4px;
+        opacity: 0.85;
+      }
+      .screen-wrap {
+        width: 1280px;
+        height: 800px;
+        border-radius: 4px;
+        overflow: hidden;
+        background: #0f172a;
+        position: relative;
+      }
+      .screen-wrap iframe {
+        width: 100%;
+        height: 100%;
+        border: none;
+        display: block;
+      }
+      @media (max-height: 920px) {
+        .scale {
+          transform: scale(0.82);
+        }
+      }
+      @media (max-height: 780px) {
+        .scale {
+          transform: scale(0.68);
+        }
+      }
+      @media (max-height: 640px) {
+        .scale {
+          transform: scale(0.56);
+        }
+      }
+      @media (max-width: 900px) {
+        .screen-wrap {
+          width: min(100vw - 2rem, 1280px);
+          height: min(55vh, 800px);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Desktop preview</h1>
+    <p class="hint">
+      Simulates a wide browser viewport <strong>1280 × 800</strong> (typical
+      laptop content area). Same origin as the game so WebSockets work. Open
+      <code>http://localhost:8787/desktop-preview.html</code> or use
+      <code>/desktop-preview.html</code> on Railway.
+    </p>
+    <div class="stage">
+      <div class="scale">
+        <div class="monitor">
+          <div class="screen-wrap">
+            <iframe title="Durak game" src="/"></iframe>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
