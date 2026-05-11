@@ -2,11 +2,11 @@
  * Durak (2-player) — pure engine, no dependencies.
  * Deck: 36 cards (6–A, four suits). Deal 6 each; trump from bottom of stock.
  *
- * Podkidnoy: attacker may add any number of cards whose rank already appears on
- * the table, including after the defender has beaten some attacks. There is no
- * cap from defender hand size — if there are more attacks than the defender can
- * beat, they assign defenses with defend(card, against), then take() or keep
- * beating until endTurn() when every attack is covered.
+ * Podkidnoy: attacker may add cards whose rank already appears on the table,
+ * including after partial defenses. If the defender runs out of cards while some
+ * attacks are still open, they cannot add more attacks until the bout resolves:
+ * defender may take(), or the attacker may endTurn(): defended pairs go to the
+ * discard, undefeated attacks return to the attacker’s hand, roles swap, then draw.
  */
 
 const SUITS = ["S", "H", "D", "C"];
@@ -163,6 +163,13 @@ function attack(state, card) {
   const r = parseCard(card).rank;
   if (!allowed.has(r)) throw new Error("Attack rank must appear on the table");
 
+  const openRows = s.table.filter((t) => t.defend == null).length;
+  const defLen = s.hands[s.defender].length;
+  if (defLen === 0 && openRows > 0)
+    throw new Error(
+      "Defender is out of cards — finish the bout (take or end attack).",
+    );
+
   s.hands[s.attacker] = removeCardFromHand(hand, card);
   s.table.push({ attack: card, defend: null });
   return checkGameOver(s);
@@ -252,14 +259,47 @@ function take(state) {
 }
 
 /**
- * After full defense, discard table, draw, defender becomes attacker.
+ * Defender emptied hand while some attacks stayed open: discard defended pairs,
+ * put undefeated attacks back on attacker, swap roles, draw (successful defense).
+ * @param {ReturnType<typeof createInitialState>} state
+ */
+function endTurnPartialDefense(state) {
+  const s = cloneState(state);
+  const back = [];
+  for (const row of s.table) {
+    if (row.defend != null) {
+      s.discard.push(row.attack, row.defend);
+    } else {
+      back.push(row.attack);
+    }
+  }
+  s.hands[s.attacker] = s.hands[s.attacker].concat(back);
+  s.table = [];
+  const prevA = s.attacker;
+  const prevD = s.defender;
+  s.attacker = prevD;
+  s.defender = prevA;
+  s.phase = "attack";
+
+  let next = drawUpToSix(s);
+  next = checkGameOver(next);
+  return next;
+}
+
+/**
+ * After full defense (all rows covered), or partial defense with defender hand
+ * empty: discard / return cards as appropriate, draw, defender becomes attacker.
  * @param {ReturnType<typeof createInitialState>} state
  */
 function endTurn(state) {
   if (state.winner != null) throw new Error("Game is over");
   if (state.table.length === 0) throw new Error("Table is empty");
   const pending = state.table.some((t) => t.defend == null);
-  if (pending) throw new Error("All attacks must be defended before ending turn");
+  if (pending) {
+    if (state.hands[state.defender].length > 0)
+      throw new Error("All attacks must be defended before ending turn");
+    return endTurnPartialDefense(state);
+  }
 
   const s = cloneState(state);
   for (const row of s.table) {

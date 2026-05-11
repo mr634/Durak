@@ -1583,7 +1583,17 @@
         let showEnd = false;
         if (!ambiguousActive) {
           if (imDef && hasOpenAttack) showTake = true;
-          if (imAtt && allDef && table.length > 0) showEnd = true;
+          const partialDefenseEnd =
+            imAtt &&
+            hasOpenAttack &&
+            defenderHandSize(p) === 0 &&
+            table.length > 0;
+          if (
+            imAtt &&
+            table.length > 0 &&
+            (allDef || partialDefenseEnd)
+          )
+            showEnd = true;
         }
 
         btnTakeEl.hidden = !showTake;
@@ -1612,6 +1622,15 @@
       function myHandArray(p) {
         const h = p.hands[p.you];
         return Array.isArray(h) ? h : [];
+      }
+
+      /** Defender hand length from snapshot ({count} for opponent view or full array). */
+      function defenderHandSize(p) {
+        if (!p || typeof p.defender !== "number") return 0;
+        const h = p.hands[p.defender];
+        if (Array.isArray(h)) return h.length;
+        if (h && typeof h.count === "number") return h.count;
+        return 0;
       }
 
       /** After refreshInteractiveUI — keep Transfer/Defend strip unless context invalidated */
@@ -1730,6 +1749,8 @@
       function cardEligibleForAttacker(p, handCard) {
         const t = p.table || [];
         if (t.length === 0) return true;
+        if (defenderHandSize(p) === 0 && t.some((row) => row && row.defend == null))
+          return false;
         const r = parseCardId(handCard);
         if (!r) return false;
         return ranksOnTable(t).has(r.rank);
