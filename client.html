@@ -20,7 +20,6 @@
           Layout = one file; tune desktop vs phone in the two @media blocks below.
           Do not fork client.html — game logic must stay single-source.
         */
-        /* Wide screens / localhost desktop preview — larger “zoom” */
         --card-w: clamp(4.5rem, min(6.8vw, 8vmin), 9.25rem);
         --card-h: clamp(6.35rem, min(9.6vw, 11.2vmin), 13rem);
         --lift: calc(var(--card-h) * -0.3);
@@ -45,8 +44,15 @@
         --deck-nudge-y: 0px;
         --trump-stack-z: 2;
         --deck-pile-z: 4;
-        /* Whole play area scale (1 = normal). Try 1.05–1.15 if cards still feel small. */
         --ui-zoom: 1;
+      }
+
+      /* Desktop / tablet — ~110% vs base (matches “browser zoom 110%” feel, no transform clipping) */
+      @media (min-width: 541px) {
+        :root {
+          --card-w: clamp(5rem, min(7.5vw, 8.8vmin), 10.25rem);
+          --card-h: clamp(7rem, min(10.6vw, 12.4vmin), 14.25rem);
+        }
       }
 
       /* Phone: trump under pile; deck+trump shifted left ~10vw for table space */
@@ -223,6 +229,7 @@
         margin-top: 0.35rem;
         min-height: min(calc(100dvh - 7rem), calc(100vh - 7rem));
         box-sizing: border-box;
+        position: relative;
       }
       .hand-label {
         margin: 0 0 0.35rem;
@@ -231,6 +238,19 @@
         letter-spacing: 0.04em;
         text-transform: uppercase;
         color: rgba(255, 255, 255, 0.55);
+      }
+      /* Same typography / ink as textured buttons */
+      .turn-status {
+        margin: 0 0 0.45rem;
+        font-family: var(--card-corner-font);
+        font-weight: 700;
+        font-style: normal;
+        font-size: clamp(0.95rem, calc(var(--card-w) * 0.19), 1.25rem);
+        letter-spacing: 0.02em;
+        color: var(--btn-gold);
+        text-shadow: var(--btn-text-shadow);
+        text-transform: none;
+        min-height: 1.35em;
       }
       .battle-strip {
         position: relative;
@@ -361,13 +381,15 @@
         filter: saturate(0.85);
       }
       /* Do not set display:flex on the base rule — it overrides [hidden] in common browsers. */
+      /* Anchored to #playmat so desktop modal sits over the table, not full viewport */
       .game-over-overlay {
-        position: fixed;
+        position: absolute;
         inset: 0;
-        z-index: 9999;
+        z-index: 10050;
         background: rgba(15, 23, 42, 0.72);
         backdrop-filter: blur(6px);
         padding: 1rem;
+        border-radius: inherit;
       }
       .game-over-overlay[hidden] {
         display: none !important;
@@ -717,6 +739,20 @@
         transform: scale(var(--ui-zoom));
         transform-origin: top center;
       }
+      /* Desktop: compact height — no empty stretch under your hand (buttons sit under deck column) */
+      @media (min-width: 541px) {
+        .felt--playmat {
+          min-height: 0;
+          padding-bottom: 0.35rem;
+        }
+        .battle-strip {
+          min-height: calc(var(--card-h) + 0.75rem);
+          margin-bottom: 0.35rem;
+        }
+        .player-hand-block {
+          padding-bottom: 0.15rem;
+        }
+      }
     </style>
   </head>
   <body>
@@ -745,7 +781,7 @@
       </div>
 
       <div id="playmat" class="felt felt--playmat" hidden>
-        <p class="hand-label">Babe</p>
+        <p id="turnStatusLine" class="turn-status" aria-live="polite"></p>
         <div class="hand-row" id="oppHand" aria-label="Opponent cards"></div>
 
         <div class="battle-strip">
@@ -762,7 +798,6 @@
         </div>
 
         <div class="player-hand-block">
-          <p class="hand-label">You</p>
           <div
             class="hand-row hand-row--online"
             id="gameHand"
@@ -804,16 +839,16 @@
             </button>
           </div>
         </div>
-      </div>
 
-      <div id="gameOverOverlay" class="game-over-overlay" hidden>
-        <div class="game-over-card" role="dialog" aria-labelledby="gameOverHeadline">
-          <img id="gameOverImg" alt="" hidden />
-          <h2 id="gameOverHeadline"></h2>
-          <p id="gameOverExtra"></p>
-          <button type="button" id="gameOverDismiss" class="btn-table">
-            OK
-          </button>
+        <div id="gameOverOverlay" class="game-over-overlay" hidden>
+          <div class="game-over-card" role="dialog" aria-labelledby="gameOverHeadline">
+            <img id="gameOverImg" alt="" hidden />
+            <h2 id="gameOverHeadline"></h2>
+            <p id="gameOverExtra"></p>
+            <button type="button" id="gameOverDismiss" class="btn-table">
+              OK
+            </button>
+          </div>
         </div>
       </div>
     </section>
@@ -915,6 +950,28 @@
         return `/assets/cards/${encodeURIComponent(file)}`;
       }
 
+      /** Warm Safari/WebKit decode cache — only ten PNGs for this deck art style */
+      const CARD_FACE_PRELOAD_BASES = [
+        "nonface_hearts_diamonds.png",
+        "nonface_spades_clubs.png",
+        "ace_hearts_diamonds.png",
+        "ace_spades_clubs.png",
+        "jack_hearts_diamonds.png",
+        "jack_spades_clubs.png",
+        "queen_hearts_diamonds.png",
+        "queen_spades_clubs.png",
+        "king_hearts_diamonds.png",
+        "king_spades_clubs.png",
+      ];
+
+      function preloadCardFaceAssets() {
+        for (const base of CARD_FACE_PRELOAD_BASES) {
+          const im = new Image();
+          im.decoding = "async";
+          im.src = `/assets/cards/${encodeURIComponent(base)}`;
+        }
+      }
+
       /** Plain text corners — used when image fails to load. */
       function applyPlainFaceMarkup(el, p, ui, extraClass) {
         el.className =
@@ -947,8 +1004,11 @@
         const img = document.createElement("img");
         img.className = "card__face-img";
         img.alt = "";
-        img.decoding = "async";
-        img.loading = "lazy";
+        img.decoding = "sync";
+        img.loading = "eager";
+        try {
+          img.fetchPriority = "high";
+        } catch (_) {}
 
         const cornerInner = `<span class="card__overlay-pip"><span class="card__overlay-rank">${rankLine}</span><span class="card__overlay-suit">${ui.symbol}</span></span>`;
         const tl = document.createElement("div");
@@ -987,7 +1047,8 @@
         const img = document.createElement("img");
         img.className = "card__back-img";
         img.alt = "";
-        img.decoding = "async";
+        img.decoding = "sync";
+        img.loading = "eager";
         img.src = src;
         img.onerror = function () {
           img.remove();
@@ -1021,6 +1082,10 @@
       }
 
       let ws;
+      /** Same-tab reconnect after WS drops (e.g. iOS Safari background) */
+      let resumeRoomId = null;
+      let reconnectQuietUntil = 0;
+
       let lastPayload = null;
       let gameOverOverlayShown = false;
       /** @type {{ cardId: string, against: string } | null} */
@@ -1288,7 +1353,7 @@
 
       async function openGameOverOverlay(p) {
         const win = p.winner === p.you;
-        const headline = win ? "You won!" : "Babe is the durak";
+        const headline = win ? "Babe won!" : "Babe is the durak!";
         const pack = await fetchGameOverPack();
         const lines = win ? pack.winnerLines : pack.loserLines;
         const imgs = win ? pack.winnerImages : pack.loserImages;
@@ -1347,6 +1412,7 @@
       const gameOverExtraEl = document.getElementById("gameOverExtra");
       const gameHandEl = document.getElementById("gameHand");
       const oppHandEl = document.getElementById("oppHand");
+      const turnStatusLineEl = document.getElementById("turnStatusLine");
       const tableAreaEl = document.getElementById("tableArea");
       const btnTakeEl = document.getElementById("btnTake");
       const btnEndTurnEl = document.getElementById("btnEndTurn");
@@ -1669,6 +1735,51 @@
         return ranksOnTable(t).has(r.rank);
       }
 
+      /** Mirrors playable moments — shows whose clock it is */
+      function isExpectingInputFromYou(p) {
+        if (!p || typeof p.you !== "number" || isFinishedGame(p)) return false;
+        const you = p.you;
+        const imAtt = p.attacker === you;
+        const imDef = p.defender === you;
+        const table = p.table || [];
+        const hasOpenAttack = table.some((r) => r && r.defend == null);
+        const allDef =
+          table.length > 0 && table.every((r) => r && r.defend != null);
+
+        if (imDef && hasOpenAttack) return true;
+        if (imAtt && table.length === 0) return true;
+        if (imAtt && hasOpenAttack) return true;
+        if (imAtt && allDef && table.length > 0) return true;
+        return false;
+      }
+
+      function updateTurnStatusLine(p) {
+        if (!turnStatusLineEl) return;
+        if (!p || typeof p.you !== "number") {
+          turnStatusLineEl.textContent = "";
+          return;
+        }
+        if (isFinishedGame(p)) {
+          turnStatusLineEl.textContent = "";
+          return;
+        }
+        turnStatusLineEl.textContent = isExpectingInputFromYou(p)
+          ? "Your turn"
+          : "Babe's turn";
+      }
+
+      function tryReconnectResumeRoom() {
+        const rm = resumeRoomId;
+        if (!rm) return;
+        if (!playmatEl || playmatEl.hidden) return;
+        if (Date.now() < reconnectQuietUntil) return;
+        if (ws && ws.readyState === WS_READY_STATE_OPEN) return;
+        reconnectQuietUntil = Date.now() + 900;
+        ensureConnected(() => {
+          send({ type: "rejoin", roomId: rm });
+        });
+      }
+
       function refreshInteractiveUI() {
         const p = lastPayload;
         if (!p || typeof p.you !== "number") return;
@@ -1687,6 +1798,7 @@
         if (gameOver) {
           hideAmbiguousStrip();
           renderCardFaces(gameHandEl, hand);
+          updateTurnStatusLine(p);
           tryShowGameOverOverlay(p);
           return;
         }
@@ -1746,6 +1858,7 @@
 
         syncAmbiguousStrip(p, you);
         applyDeckButtonVisibility(p);
+        updateTurnStatusLine(p);
       }
 
       function renderTable(p) {
@@ -1786,6 +1899,7 @@
         gameHandEl.innerHTML = "";
         oppHandEl.innerHTML = "";
         tableAreaEl.innerHTML = "";
+        if (turnStatusLineEl) turnStatusLineEl.textContent = "";
       }
 
       function setConnected(on) {
@@ -1857,6 +1971,8 @@
         switch (j.type) {
           case "joined":
             document.getElementById("roomCode").value = j.roomId || "";
+            if (j.roomId)
+              resumeRoomId = String(j.roomId).trim().toUpperCase();
             if (j.waiting) {
               waitingAsHost = true;
               writeOpenRoom(j.roomId || "");
@@ -1880,6 +1996,7 @@
             break;
           case "left":
             log("left room");
+            resumeRoomId = null;
             waitingAsHost = false;
             sessionStorage.removeItem(SS_HOST_TAB);
             clearOpenRoom();
@@ -1889,6 +2006,7 @@
             break;
           case "room_closed":
             log("room_closed: " + (j.reason || "?"));
+            resumeRoomId = null;
             waitingAsHost = false;
             sessionStorage.removeItem(SS_HOST_TAB);
             clearOpenRoom();
@@ -1904,6 +2022,14 @@
             {
               const em = String(j.message || "").toLowerCase();
               lobbyAutoJoinRoom = null;
+              if (
+                em.includes("cannot reconnect") ||
+                em.includes("room not found") ||
+                em.includes("already connected") ||
+                em.includes("room not joinable")
+              ) {
+                resumeRoomId = null;
+              }
               if (
                 em.includes("room not found") ||
                 em.includes("room is full")
@@ -2009,6 +2135,7 @@
         send({ type: "leave" });
 
       document.getElementById("btnCancelGame").onclick = () => {
+        resumeRoomId = null;
         waitingAsHost = false;
         sessionStorage.removeItem(SS_HOST_TAB);
         clearOpenRoom();
@@ -2030,6 +2157,22 @@
         setConnected(false);
       };
 
+      window.addEventListener("pagehide", (ev) => {
+        if (ev.persisted) return;
+        try {
+          if (ws && ws.readyState === WS_READY_STATE_OPEN)
+            ws.send(JSON.stringify({ type: "leave" }));
+        } catch (_) {}
+      });
+
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") tryReconnectResumeRoom();
+      });
+      window.addEventListener("pageshow", (ev) => {
+        if (ev.persisted) tryReconnectResumeRoom();
+      });
+
+      preloadCardFaceAssets();
       applyDefaultWsUrlInput();
       refreshInviteJoinUI();
       setupHandLayoutObservers();

@@ -6,6 +6,7 @@
  * - Client → server
  *   { "type": "create" }     → host room, get room id + seat 0
  *   { "type": "leave" }      → leave room (partner notified)
+ *   { "type": "rejoin", "roomId": "ABC123" } → reclaim empty seat after brief disconnect (grace window)
  *   { "type": "join", "roomId": "ABC123" } → seat 1, starts game
  *   { "type": "move", "action": "attack", "card": "9S" }
  *   { "type": "move", "action": "defend", "card": "10S", "against": "9S" }
@@ -196,6 +197,47 @@ function applyMove(state, seat, msg) {
 /** @type {Map<string, Room>} */
 const rooms = new Map();
 
+/** After abrupt WS drop mid-game, keep room alive so Safari background can reconnect */
+const DISCONNECT_GRACE_MS =
+  Number(process.env.DISCONNECT_GRACE_MS) || 90_000;
+
+/** @type {Map<string, ReturnType<typeof setTimeout>>} */
+const roomGraceTimers = new Map();
+
+function cancelRoomGrace(roomId) {
+  const t = roomGraceTimers.get(roomId);
+  if (t != null) clearTimeout(t);
+  roomGraceTimers.delete(roomId);
+}
+
+function finalizeGraceRoom(roomId) {
+  cancelRoomGrace(roomId);
+  const room = rooms.get(roomId);
+  if (!room) return;
+  if (room.seats[0] && room.seats[1]) return;
+  const survivor = room.seats[0] || room.seats[1];
+  rooms.delete(roomId);
+  if (survivor) {
+    const octx = survivor.__durakCtx;
+    if (octx) {
+      delete octx.roomId;
+      delete octx.seat;
+    }
+    wsSend(survivor, { type: "room_closed", reason: "peer_disconnected" });
+  }
+}
+
+function scheduleRoomGrace(roomId) {
+  cancelRoomGrace(roomId);
+  roomGraceTimers.set(
+    roomId,
+    setTimeout(() => {
+      roomGraceTimers.delete(roomId);
+      finalizeGraceRoom(roomId);
+    }, DISCONNECT_GRACE_MS),
+  );
+}
+
 /** @param {import("ws") | null | undefined} ws */
 function wsSend(ws, payload) {
   if (ws && ws.readyState === 1) ws.send(JSON.stringify(payload));
@@ -217,13 +259,14 @@ function clearStaleRoomMembership(ws, ctx) {
 }
 
 /**
- * Tear down room and clear ctx on both sockets so survivors can Create/Join again.
+ * Explicit leave / intentional teardown — closes room for partner immediately.
  */
-function removeFromRoom(ws, ctx, reason = "peer_disconnected") {
+function destroyRoom(ws, ctx, reason = "peer_disconnected") {
   const roomId = ctx.roomId;
   const seat = ctx.seat;
   if (roomId == null || seat == null) return;
   const room = rooms.get(roomId);
+  cancelRoomGrace(roomId);
   if (!room || room.seats[seat] !== ws) {
     delete ctx.roomId;
     delete ctx.seat;
@@ -241,6 +284,45 @@ function removeFromRoom(ws, ctx, reason = "peer_disconnected") {
     }
     wsSend(other, { type: "room_closed", reason });
   }
+}
+
+/**
+ * Socket closed without leave — lobby drops immediately; mid-game gets reconnect grace.
+ */
+function handleAbruptDisconnect(ws, ctx) {
+  const roomId = ctx.roomId;
+  const seat = ctx.seat;
+  if (roomId == null || seat == null) return;
+  const room = rooms.get(roomId);
+  if (!room || room.seats[seat] !== ws) {
+    delete ctx.roomId;
+    delete ctx.seat;
+    return;
+  }
+  room.seats[seat] = null;
+  delete ctx.roomId;
+  delete ctx.seat;
+
+  const mate = room.seats[1 - seat];
+  if (!mate) {
+    cancelRoomGrace(roomId);
+    rooms.delete(roomId);
+    return;
+  }
+
+  if (room.state == null) {
+    cancelRoomGrace(roomId);
+    const octx = mate.__durakCtx;
+    if (octx) {
+      delete octx.roomId;
+      delete octx.seat;
+    }
+    wsSend(mate, { type: "room_closed", reason: "peer_disconnected" });
+    rooms.delete(roomId);
+    return;
+  }
+
+  scheduleRoomGrace(roomId);
 }
 
 const server = http.createServer((req, res) => {
@@ -314,7 +396,16 @@ const server = http.createServer((req, res) => {
       return;
     }
     const ext = path.extname(abs).toLowerCase();
-    sendAssetFile(req, res, abs, ext, ASSET_CACHE_CONTROL);
+    const cardsRoot = path.resolve(path.join(__dirname, "assets", "cards"));
+    const resolvedAbs = path.resolve(abs);
+    const inCardsArt =
+      resolvedAbs === cardsRoot ||
+      resolvedAbs.startsWith(cardsRoot + path.sep);
+    const cacheCtrl =
+      inCardsArt && /\.(png|jpe?g|webp|gif)$/i.test(abs)
+        ? "public, max-age=604800, stale-while-revalidate=86400"
+        : ASSET_CACHE_CONTROL;
+    sendAssetFile(req, res, abs, ext, cacheCtrl);
     return;
   }
 
@@ -403,7 +494,7 @@ wss.on("connection", (ws) => {
 
     try {
       if (msg.type === "leave") {
-        removeFromRoom(ws, ctx, "peer_left");
+        destroyRoom(ws, ctx, "peer_left");
         wsSend(ws, { type: "left" });
         return;
       }
@@ -419,6 +510,7 @@ wss.on("connection", (ws) => {
             room.seats[0] === ws &&
             room.seats[1] == null;
           if (soloHostLobby) {
+            cancelRoomGrace(ctx.roomId);
             rooms.delete(ctx.roomId);
             delete ctx.roomId;
             delete ctx.seat;
@@ -473,7 +565,12 @@ wss.on("connection", (ws) => {
         }
         const room = rooms.get(roomId);
         if (!room) throw new Error("Room not found");
+        if (room.state != null)
+          throw new Error(
+            "Game already in progress — reopen this tab to reconnect.",
+          );
         if (room.seats[1]) throw new Error("Room is full");
+        cancelRoomGrace(roomId);
         room.seats[1] = ws;
         ctx.roomId = roomId;
         ctx.seat = 1;
@@ -487,6 +584,37 @@ wss.on("connection", (ws) => {
         const host = room.seats[0];
         wsSend(host, { type: "start", roomId });
         broadcastState(room);
+        return;
+      }
+
+      if (msg.type === "rejoin") {
+        clearStaleRoomMembership(ws, ctx);
+        if (ctx.roomId != null)
+          throw new Error(
+            'Already connected — click "Cancel game" if stuck.',
+          );
+        const roomId = String(msg.roomId || "")
+          .trim()
+          .toUpperCase();
+        const room = rooms.get(roomId);
+        if (!room) throw new Error("Room not found");
+        let seat = null;
+        if (room.seats[0] == null && room.seats[1] != null) seat = 0;
+        else if (room.seats[1] == null && room.seats[0] != null) seat = 1;
+        else throw new Error("Cannot reconnect right now");
+        room.seats[seat] = ws;
+        ctx.roomId = roomId;
+        ctx.seat = seat;
+        cancelRoomGrace(roomId);
+        const waiting =
+          room.state == null && seat === 0 && room.seats[1] == null;
+        wsSend(ws, {
+          type: "joined",
+          roomId,
+          seat,
+          waiting,
+        });
+        if (room.state != null) broadcastState(room);
         return;
       }
 
@@ -512,7 +640,7 @@ wss.on("connection", (ws) => {
   });
 
   ws.on("close", () => {
-    removeFromRoom(ws, ctx, "peer_disconnected");
+    handleAbruptDisconnect(ws, ctx);
   });
 });
 
