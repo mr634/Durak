@@ -3,7 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Durak — client</title>
+    <title>Durak</title>
+    <link rel="icon" href="/assets/favicon-heart.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -15,8 +16,9 @@
         --felt: #4a5568;
         --felt-deep: #383f4f;
         --felt-light: #5c6578;
-        --card-w: 4.75rem;
-        --card-h: 6.75rem;
+        /* Scale with viewport so the table fills the screen without browser zoom */
+        --card-w: clamp(3rem, min(5.2vw, 5.5vmin), 6.75rem);
+        --card-h: clamp(4.25rem, min(7.4vw, 7.8vmin), 9.55rem);
         --lift: calc(var(--card-h) * -0.3);
         --card-corner-font: "Cormorant Garamond", "Palatino Linotype", Palatino,
           Georgia, serif;
@@ -41,9 +43,11 @@
       }
       body {
         font-family: system-ui, sans-serif;
-        max-width: 52rem;
+        max-width: none;
+        width: 100%;
         margin: 0 auto;
-        padding: 1rem 1rem 2rem;
+        padding: 0.4rem 0.6rem 1rem;
+        box-sizing: border-box;
         line-height: 1.45;
         background: transparent;
         min-height: 100vh;
@@ -93,10 +97,13 @@
         background: rgba(255, 255, 255, 0.78);
         backdrop-filter: blur(6px);
         border-radius: 12px;
-        padding: 1rem 1.25rem 1.25rem;
-        margin-bottom: 1.25rem;
+        padding: 0.65rem 0.75rem 0.85rem;
+        margin-bottom: 0.75rem;
         box-shadow: 0 2px 16px rgba(0, 0, 0, 0.12);
         border: 1px solid rgba(255, 255, 255, 0.35);
+        width: 100%;
+        max-width: none;
+        box-sizing: border-box;
       }
       section.panel h2 {
         margin: 0 0 0.5rem;
@@ -116,13 +123,15 @@
         background-position: center, center;
         background-repeat: no-repeat, no-repeat;
         border-radius: 12px;
-        padding: 1rem;
-        margin: 0.75rem 0;
+        padding: 0.65rem 0.75rem;
+        margin: 0.4rem 0;
         border: 1px solid rgba(255, 255, 255, 0.12);
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
       }
       .felt--playmat {
-        margin-top: 0.5rem;
+        margin-top: 0.35rem;
+        min-height: min(calc(100dvh - 7rem), calc(100vh - 7rem));
+        box-sizing: border-box;
       }
       .hand-label {
         margin: 0 0 0.35rem;
@@ -551,25 +560,40 @@
         bottom: 18px;
         z-index: 2;
       }
-      /* Splash: pair opens second tab — localStorage shares pending room id */
+      /* Splash: anchor art to the top; crop bottom on resize. Share ?room= for other devices. */
       .start-screen {
         position: fixed;
         inset: 0;
         z-index: 99;
         display: flex;
-        align-items: center;
-        justify-content: center;
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: space-between;
         margin: 0;
-        padding: 2rem 1rem;
+        padding: 2rem 1rem 0;
+        padding-bottom: env(safe-area-inset-bottom, 0);
         box-sizing: border-box;
         background-color: #2a3344;
         background-image: url("/assets/ui/game_start_wide.png");
         background-size: cover;
-        background-position: center;
+        background-position: top center;
         background-repeat: no-repeat;
+      }
+      /* Portrait handhelds: tall cover art (iPhone etc.); landscape keeps wide */
+      @media (max-width: 896px) and (orientation: portrait) {
+        .start-screen {
+          background-image: url("/assets/ui/game_start_long.png");
+        }
       }
       .start-screen[hidden] {
         display: none !important;
+      }
+      .start-screen__center {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 0;
       }
       .start-screen__inner {
         display: flex;
@@ -579,6 +603,30 @@
         margin-left: min(22vw, 14rem);
         margin-top: min(10vh, 5rem);
         max-width: 90vw;
+      }
+      .start-screen__footer {
+        flex-shrink: 0;
+        display: flex;
+        justify-content: center;
+        padding: 0.5rem 0.75rem calc(0.65rem + env(safe-area-inset-bottom, 0));
+      }
+      .btn-cancel-game {
+        appearance: none;
+        cursor: pointer;
+        font-family: var(--card-corner-font);
+        font-size: 0.82rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        color: rgba(255, 255, 255, 0.92);
+        background: rgba(15, 23, 42, 0.45);
+        border: 1px solid rgba(255, 255, 255, 0.28);
+        border-radius: 999px;
+        padding: 0.45em 1.15em;
+        transition: background 0.15s ease, border-color 0.15s ease;
+      }
+      .btn-cancel-game:hover {
+        background: rgba(15, 23, 42, 0.62);
+        border-color: rgba(255, 255, 255, 0.42);
       }
       #btnInviteJoin {
         opacity: 0.65;
@@ -608,8 +656,15 @@
   </head>
   <body>
     <div id="startScreen" class="start-screen">
-      <div class="start-screen__inner">
-        <button type="button" id="btnInviteJoin">Invite babe</button>
+      <div class="start-screen__center">
+        <div class="start-screen__inner">
+          <button type="button" id="btnInviteJoin">Invite babe</button>
+        </div>
+      </div>
+      <div class="start-screen__footer">
+        <button type="button" id="btnCancelGame" class="btn-cancel-game">
+          Cancel game
+        </button>
       </div>
     </div>
 
@@ -924,10 +979,52 @@
       /** This tab clicked Invite (don’t offer Join on the host window). */
       const SS_HOST_TAB = "durak_ss_invite_tab";
       let waitingAsHost = false;
+
+      /** Room id in ?room= so phones / other browsers can join (localStorage is per-device). */
+      function parseRoomFromLocation() {
+        try {
+          const raw = new URLSearchParams(location.search).get("room");
+          if (!raw) return null;
+          const id = String(raw)
+            .trim()
+            .toUpperCase()
+            .replace(/[^A-Z0-9]/g, "");
+          if (id.length < 4 || id.length > 12) return null;
+          return id;
+        } catch {
+          return null;
+        }
+      }
+
+      function setInviteRoomInUrl(roomId) {
+        try {
+          const id = String(roomId || "")
+            .trim()
+            .toUpperCase();
+          if (!id) return;
+          const u = new URL(location.href);
+          u.searchParams.set("room", id);
+          history.replaceState(null, "", u.pathname + u.search + u.hash);
+        } catch (_) {}
+      }
+
+      function stripInviteRoomFromUrl() {
+        try {
+          const u = new URL(location.href);
+          if (!u.searchParams.has("room")) return;
+          u.searchParams.delete("room");
+          const q = u.searchParams.toString();
+          const next =
+            u.pathname + (q ? "?" + q : "") + u.hash;
+          history.replaceState(null, "", next);
+        } catch (_) {}
+      }
       /** @type {(() => void) | null} */
       let pendingWsOpenCallback = null;
 
       function readOpenRoom() {
+        const fromUrl = parseRoomFromLocation();
+        if (fromUrl) return { roomId: fromUrl, ts: Date.now() };
         try {
           const r = localStorage.getItem(LS_OPEN_ROOM);
           if (!r) return null;
@@ -948,11 +1045,13 @@
           LS_OPEN_ROOM,
           JSON.stringify({ roomId: id, ts: Date.now() }),
         );
+        setInviteRoomInUrl(id);
         refreshInviteJoinUI();
       }
 
       function clearOpenRoom() {
         localStorage.removeItem(LS_OPEN_ROOM);
+        stripInviteRoomFromUrl();
         refreshInviteJoinUI();
       }
 
@@ -1646,6 +1745,15 @@
             break;
           case "error":
             log("error: " + (j.message || ""));
+            {
+              const em = String(j.message || "").toLowerCase();
+              if (
+                em.includes("room not found") ||
+                em.includes("room is full")
+              ) {
+                clearOpenRoom();
+              }
+            }
             break;
           default:
             log("<< type " + j.type);
@@ -1740,6 +1848,28 @@
 
       document.getElementById("btnLeave").onclick = () =>
         send({ type: "leave" });
+
+      document.getElementById("btnCancelGame").onclick = () => {
+        waitingAsHost = false;
+        sessionStorage.removeItem(SS_HOST_TAB);
+        clearOpenRoom();
+        gameOverOverlayShown = false;
+        pendingWsOpenCallback = null;
+        const sock = ws;
+        if (sock && sock.readyState === WS_READY_STATE_OPEN) {
+          try {
+            sock.send(JSON.stringify({ type: "leave" }));
+          } catch (_) {}
+        }
+        if (sock) {
+          sock.onclose = null;
+          try {
+            sock.close();
+          } catch (_) {}
+        }
+        ws = null;
+        setConnected(false);
+      };
 
       applyDefaultWsUrlInput();
       refreshInviteJoinUI();
